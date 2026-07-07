@@ -1,0 +1,45 @@
+name: mijn_rapportage
+description: "MijnRapportage — professionele elektrotechnische inspectie applicatie"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  image_picker: ^1.0.4
+  pdf: ^3.10.7
+  xml: ^6.3.0
+  intl: ^0.20.2
+  path_provider: ^2.1.1
+  share_plus: ^7.2.1
+  excel: ^4.0.6
+  signature: ^5.5.0
+  file_selector: ^1.0.3
+  desktop_drop: ^0.4.4
+  http: ^1.2.1
+  archive: ^3.6.1
+  pdfx: ^2.6.0
+  shared_preferences: ^2.3.0
+  # Alleen gebruikt door het losse web-formulier entrypoint
+  # (lib/main_herstel_web.dart) — de hoofdapp praat met Firebase via de
+  # publieke REST API (zie herstel_sync_service.dart), niet via deze SDK's.
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  generate: false

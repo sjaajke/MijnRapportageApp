@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Foto's bij een herstel-submission. Zelfde vertrouwensmodel als
+// firestore.rules: geen auth, het token in het pad is de sleutel.
+// Bestandsnamen liggen vast (photo1.jpg/photo2.jpg) omdat elk token maar
+// één keer mag indienen — dus geen overschrijf-risico bij gelijktijdige
+// uploads.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /herstel_photos/{token}/{fileName} {
+      // In Storage Rules is `resource` de bestaande object-metadata vóór de
+      // schrijfactie, en `null` als het object nog niet bestaat — dat is hier
+      // het create-once-equivalent van Firestore's exists().
+      allow write: if resource == null
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow read: if true;
+      allow delete: if false;
+    }
+  }
+}

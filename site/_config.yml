@@ -1,0 +1,18 @@
+title: MijnRapportageApp
+description: De professionele app voor elektrotechnische inspecties — snel, nauwkeurig en compleet.
+baseurl: ""
+url: ""
+lang: nl
+
+author:
+  name: Jay Smeekes
+
+# Build settings
+markdown: kramdown
+permalink: pretty
+
+# Exclude files from build
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md

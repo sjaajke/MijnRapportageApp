@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Herstel-submissions: een externe reparateur (zonder de app, zonder login)
+// opent een link uit een QR-code op de PDF en dient één keer een
+// herstelmelding in. Het token in de URL is de enige "sleutel" — er is
+// bewust geen Firebase Auth, dus deze rules kunnen niet op request.auth
+// steunen. Vertrouwen komt volledig van het token zelf: een cryptografisch
+// willekeurige, alleen-in-de-QR-code aanwezige waarde.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /herstel_submissions/{token} {
+      // Aanmaken mag alleen als er nog geen inzending bestaat voor dit
+      // token — voorkomt dat een link twee keer (over)geschreven wordt.
+      allow create: if !exists(/databases/$(database)/documents/herstel_submissions/$(token));
+      // Een eenmaal ingediende herstelmelding is definitief.
+      allow update, delete: if false;
+      // Nodig voor de "Ophalen"-knop in de app (geen auth aldaar, dus
+      // ook hier geen auth-check mogelijk; het token is niet oplijstbaar
+      // via een query, alleen via een exact bekende document-id op te
+      // vragen).
+      allow read: if true;
+    }
+  }
+}
