@@ -75,6 +75,8 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
       - run: flutter pub get
       - run: flutter build windows --release
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
       - name: Package build
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath MijnRapportage-windows.zip
       - uses: actions/upload-artifact@v4
