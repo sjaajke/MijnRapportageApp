@@ -18,7 +18,13 @@ service cloud.firestore {
       // ook hier geen auth-check mogelijk; het token is niet oplijstbaar
       // via een query, alleen via een exact bekende document-id op te
       // vragen).
-      allow read: if true;
+      //
+      // Let op: expliciet `get`, niet `read` — `read` is in Firestore-rules
+      // een verzamelnaam voor zowel `get` als `list`, en zou dus onbedoeld
+      // ook query's op de hele collectie toestaan (en daarmee alle
+      // ingediende meldingen van alle tokens tegelijk lekken). Zonder een
+      // `list`-regel wordt list/query standaard geweigerd.
+      allow get: if true;
     }
   }
 }
