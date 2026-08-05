@@ -45,6 +45,7 @@ class _HomePageState extends State<HomePage> {
   final _db = DatabaseService();
   List<Inspection> _inspections = [];
   bool _loading = true;
+  Object? _loadError;
 
   @override
   void initState() {
@@ -53,12 +54,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadInspections() async {
-    setState(() => _loading = true);
-    final inspections = await _db.getInspections();
     setState(() {
-      _inspections = inspections;
-      _loading = false;
+      _loading = true;
+      _loadError = null;
     });
+    try {
+      final inspections = await _db.getInspections();
+      if (!mounted) return;
+      setState(() {
+        _inspections = inspections;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _importZip() async {
@@ -97,7 +110,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _createInspection() async {
-    final id = await _db.createInspection();
+    final int id;
+    try {
+      id = await _db.createInspection();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Aanmaken mislukt: $e')),
+      );
+      return;
+    }
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -438,7 +460,30 @@ class _HomePageState extends State<HomePage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _inspections.isEmpty
+          : _loadError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 48, color: Colors.red),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Laden van inspecties is mislukt:\n$_loadError',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadInspections,
+                          child: const Text('Opnieuw proberen'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _inspections.isEmpty
               ? Center(
                   child: Text(
                     l10n.noInspections,
