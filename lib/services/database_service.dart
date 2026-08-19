@@ -43,6 +43,13 @@ import '../models/herstel.dart';
 import '../models/solar_vereffening.dart';
 import '../models/measurement_group.dart';
 import '../models/measurement_reading.dart';
+import '../models/nen_elementcode.dart';
+import '../models/nen_gebrek_referentie.dart';
+import '../models/nen_objectgegevens.dart';
+import '../models/nen_bouwdeel.dart';
+import '../models/nen_gebrek.dart';
+import '../models/nen_gebrek_foto.dart';
+import '../data/nen2767_seed_data.dart';
 import 'photo_service.dart';
 
 class DatabaseService {
@@ -480,7 +487,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 23,
+      version: 25,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -844,6 +851,133 @@ class DatabaseService {
     ''');
 
     await _insertDefaultStandards(db);
+    await _createNen2767Tables(db);
+    await _insertNen2767SeedData(db);
+  }
+
+  Future<void> _createNen2767Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_elementcodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        elementcode TEXT NOT NULL,
+        hoofdgroep TEXT DEFAULT '',
+        groep TEXT DEFAULT '',
+        subgroep TEXT DEFAULT '',
+        elementbenaming TEXT DEFAULT '',
+        eenheid TEXT DEFAULT '',
+        nen2767_lijstnr TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_gebrekenlijst (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nen2767_lijstnr TEXT,
+        elementcode TEXT NOT NULL,
+        installatiedeel TEXT DEFAULT '',
+        elementomschrijving TEXT DEFAULT '',
+        gebrek_omschrijving TEXT NOT NULL,
+        gebrekcode TEXT DEFAULT '',
+        ernst_default TEXT DEFAULT '',
+        suggestie_intensiteit TEXT DEFAULT '',
+        suggestie_omvang TEXT DEFAULT ''
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_objectgegevens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL UNIQUE,
+        bouwjaar TEXT DEFAULT '',
+        gebruiksfunctie TEXT DEFAULT '',
+        objectcode TEXT DEFAULT '',
+        opmerkingen TEXT DEFAULT '',
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_bouwdelen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        parent_id INTEGER,
+        elementcode_id INTEGER,
+        naam TEXT DEFAULT '',
+        code TEXT DEFAULT '',
+        volgorde INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES nen_bouwdelen (id) ON DELETE CASCADE,
+        FOREIGN KEY (elementcode_id) REFERENCES nen_elementcodes (id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_gebreken (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        bouwdeel_id INTEGER NOT NULL,
+        elementcode_id INTEGER,
+        gebrek_referentie_id INTEGER,
+        gebrek_omschrijving TEXT DEFAULT '',
+        ernst TEXT NOT NULL DEFAULT 'G',
+        omvang_percentage REAL NOT NULL DEFAULT 0,
+        intensiteit TEXT NOT NULL DEFAULT 'Begin',
+        conditiescore INTEGER NOT NULL DEFAULT 1,
+        locatie_detail TEXT DEFAULT '',
+        toelichting TEXT DEFAULT '',
+        inspecteur TEXT DEFAULT '',
+        geinspecteerd_op TEXT DEFAULT '',
+        created_at TEXT DEFAULT '',
+        updated_at TEXT DEFAULT '',
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE,
+        FOREIGN KEY (bouwdeel_id) REFERENCES nen_bouwdelen (id) ON DELETE CASCADE,
+        FOREIGN KEY (elementcode_id) REFERENCES nen_elementcodes (id),
+        FOREIGN KEY (gebrek_referentie_id) REFERENCES nen_gebrekenlijst (id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen_gebrek_fotos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gebrek_id INTEGER NOT NULL,
+        foto_path TEXT NOT NULL,
+        volgorde INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT '',
+        FOREIGN KEY (gebrek_id) REFERENCES nen_gebreken (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS nen2767_seed_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        data_version INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// (Re)seedt de officiële NEN 2767-elementcodes en -gebrekenlijst zodra de
+  /// meegeleverde seed-data (`nen2767_seed_data.dart`) een nieuwere
+  /// [nen2767DataVersion] heeft dan wat er al in de database staat. Bestaande
+  /// koppelingen (nen_bouwdelen.elementcode_id, nen_gebreken.gebrek_referentie_id)
+  /// worden niet aangeraakt door zo'n reseed omdat elementcode/gebrekcode
+  /// als stabiele sleutel gebruikt worden, niet de rij-id.
+  Future<void> _insertNen2767SeedData(Database db) async {
+    final metaRows = await db.query('nen2767_seed_meta', where: 'id = 1');
+    final storedVersion =
+        metaRows.isEmpty ? 0 : (metaRows.first['data_version'] as int? ?? 0);
+    if (storedVersion >= nen2767DataVersion) return;
+
+    await db.transaction((txn) async {
+      await txn.delete('nen_elementcodes');
+      await txn.delete('nen_gebrekenlijst');
+      final batch = txn.batch();
+      for (final row in nen2767ElementcodesSeed) {
+        batch.insert('nen_elementcodes', Map<String, Object?>.from(row));
+      }
+      for (final row in nen2767GebrekenlijstSeed) {
+        batch.insert('nen_gebrekenlijst', Map<String, Object?>.from(row));
+      }
+      batch.insert(
+        'nen2767_seed_meta',
+        {'id': 1, 'data_version': nen2767DataVersion},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await batch.commit(noResult: true);
+    });
   }
 
   Future<void> _onOpen(Database db) async {
@@ -1539,6 +1673,19 @@ class DatabaseService {
       if (!existing.contains('installation_responsible_phone')) {
         await db.execute(
           "ALTER TABLE general_data ADD COLUMN installation_responsible_phone TEXT DEFAULT ''",
+        );
+      }
+    }
+    if (oldVersion < 24) {
+      await _createNen2767Tables(db);
+      await _insertNen2767SeedData(db);
+    }
+    if (oldVersion < 25) {
+      await _createNen2767Tables(db);
+      final cols = await db.rawQuery("PRAGMA table_info(nen_gebreken)");
+      if (!cols.any((c) => c['name'] == 'elementcode_id')) {
+        await db.execute(
+          "ALTER TABLE nen_gebreken ADD COLUMN elementcode_id INTEGER",
         );
       }
     }
@@ -3690,5 +3837,241 @@ class DatabaseService {
     final token = base64Url.encode(tokenBytes).replaceAll('=', '');
     await updateHerstel(herstel.copyWith(token: token));
     return token;
+  }
+
+  // ── NEN 2767: elementcodes & gebrekenlijst (read-only referentiedata) ──
+
+  Future<List<NenElementcode>> getNenElementcodes({String? nen2767Lijstnr}) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_elementcodes',
+      where: nen2767Lijstnr != null ? 'nen2767_lijstnr = ?' : null,
+      whereArgs: nen2767Lijstnr != null ? [nen2767Lijstnr] : null,
+      orderBy: 'hoofdgroep, groep, subgroep, elementbenaming',
+    );
+    return maps.map((m) => NenElementcode.fromMap(m)).toList();
+  }
+
+  /// Geeft alle voorkomende installatiecodes (nen2767_lijstnr) waarvoor
+  /// elementcodes beschikbaar zijn, voor de installatiecode-stap van de
+  /// tweestaps installatiecode > elementcode-selectie bij een gebrek.
+  Future<List<String>> getNenLijstnrs() async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT DISTINCT nen2767_lijstnr FROM nen_elementcodes
+      WHERE nen2767_lijstnr IS NOT NULL AND nen2767_lijstnr != ''
+      ORDER BY nen2767_lijstnr
+    ''');
+    return maps.map((m) => m['nen2767_lijstnr'] as String).toList();
+  }
+
+  Future<NenElementcode?> getNenElementcode(int id) async {
+    final db = await database;
+    final maps = await db.query('nen_elementcodes', where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return NenElementcode.fromMap(maps.first);
+  }
+
+  Future<List<NenGebrekReferentie>> getNenGebrekenlijstVoorElementcode(
+      String elementcode) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_gebrekenlijst',
+      where: 'elementcode = ?',
+      whereArgs: [elementcode],
+      orderBy: 'gebrek_omschrijving',
+    );
+    return maps.map((m) => NenGebrekReferentie.fromMap(m)).toList();
+  }
+
+  Future<NenGebrekReferentie?> getNenGebrekReferentie(int id) async {
+    final db = await database;
+    final maps = await db.query('nen_gebrekenlijst', where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return NenGebrekReferentie.fromMap(maps.first);
+  }
+
+  // ── NEN 2767: objectgegevens ──
+
+  Future<NenObjectgegevens?> getNenObjectgegevens(int inspectionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_objectgegevens',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+    );
+    if (maps.isEmpty) return null;
+    return NenObjectgegevens.fromMap(maps.first);
+  }
+
+  Future<int> insertNenObjectgegevens(NenObjectgegevens obj) async {
+    final db = await database;
+    return await db.insert('nen_objectgegevens', obj.toMap());
+  }
+
+  Future<void> updateNenObjectgegevens(NenObjectgegevens obj) async {
+    final db = await database;
+    await db.update(
+      'nen_objectgegevens',
+      obj.toMap(),
+      where: 'id = ?',
+      whereArgs: [obj.id],
+    );
+  }
+
+  /// Geeft de inspectie-id's van andere inspecties met hetzelfde
+  /// [objectcode] (voor de historievergelijking), meest recent eerst.
+  Future<List<int>> getNenInspectionIdsVoorObjectcode(
+    String objectcode, {
+    int? excludeInspectionId,
+  }) async {
+    if (objectcode.isEmpty) return [];
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT o.inspection_id AS inspection_id, i.created_at AS created_at
+      FROM nen_objectgegevens o
+      JOIN inspections i ON i.id = o.inspection_id
+      WHERE o.objectcode = ?
+      ORDER BY i.created_at DESC
+    ''', [objectcode]);
+    return maps
+        .map((m) => m['inspection_id'] as int)
+        .where((id) => id != excludeInspectionId)
+        .toList();
+  }
+
+  // ── NEN 2767: bouwdelen (object/bouwdeel/element/locatie-boom) ──
+
+  Future<List<NenBouwdeel>> getNenBouwdelen(int inspectionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_bouwdelen',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+      orderBy: 'volgorde, naam',
+    );
+    return maps.map((m) => NenBouwdeel.fromMap(m)).toList();
+  }
+
+  Future<NenBouwdeel?> getNenBouwdeel(int id) async {
+    final db = await database;
+    final maps = await db.query('nen_bouwdelen', where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return NenBouwdeel.fromMap(maps.first);
+  }
+
+  Future<int> insertNenBouwdeel(NenBouwdeel bouwdeel) async {
+    final db = await database;
+    return await db.insert('nen_bouwdelen', bouwdeel.toMap());
+  }
+
+  Future<void> updateNenBouwdeel(NenBouwdeel bouwdeel) async {
+    final db = await database;
+    await db.update(
+      'nen_bouwdelen',
+      bouwdeel.toMap(),
+      where: 'id = ?',
+      whereArgs: [bouwdeel.id],
+    );
+  }
+
+  /// Verwijdert een bouwdeel-node inclusief alle onderliggende nodes,
+  /// gebreken en gebrek-foto's. Foreign keys worden in deze database niet
+  /// afgedwongen (geen `PRAGMA foreign_keys = ON`), dus de cascade wordt
+  /// hier expliciet in Dart uitgevoerd.
+  Future<void> deleteNenBouwdeel(int id) async {
+    final db = await database;
+    final children = await db.query(
+      'nen_bouwdelen',
+      where: 'parent_id = ?',
+      whereArgs: [id],
+    );
+    for (final child in children) {
+      await deleteNenBouwdeel(child['id'] as int);
+    }
+    final gebreken = await db.query(
+      'nen_gebreken',
+      where: 'bouwdeel_id = ?',
+      whereArgs: [id],
+    );
+    for (final gebrek in gebreken) {
+      await deleteNenGebrek(gebrek['id'] as int);
+    }
+    await db.delete('nen_bouwdelen', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── NEN 2767: gebreken ──
+
+  Future<List<NenGebrek>> getNenGebreken(int bouwdeelId) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_gebreken',
+      where: 'bouwdeel_id = ?',
+      whereArgs: [bouwdeelId],
+      orderBy: 'created_at',
+    );
+    return maps.map((m) => NenGebrek.fromMap(m)).toList();
+  }
+
+  Future<List<NenGebrek>> getNenGebrekenVoorInspectie(int inspectionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_gebreken',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+      orderBy: 'bouwdeel_id, created_at',
+    );
+    return maps.map((m) => NenGebrek.fromMap(m)).toList();
+  }
+
+  Future<NenGebrek?> getNenGebrek(int id) async {
+    final db = await database;
+    final maps = await db.query('nen_gebreken', where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return NenGebrek.fromMap(maps.first);
+  }
+
+  Future<int> insertNenGebrek(NenGebrek gebrek) async {
+    final db = await database;
+    return await db.insert('nen_gebreken', gebrek.toMap());
+  }
+
+  Future<void> updateNenGebrek(NenGebrek gebrek) async {
+    final db = await database;
+    await db.update(
+      'nen_gebreken',
+      gebrek.toMap(),
+      where: 'id = ?',
+      whereArgs: [gebrek.id],
+    );
+  }
+
+  Future<void> deleteNenGebrek(int id) async {
+    final db = await database;
+    await db.delete('nen_gebrek_fotos', where: 'gebrek_id = ?', whereArgs: [id]);
+    await db.delete('nen_gebreken', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── NEN 2767: gebrek-foto's ──
+
+  Future<List<NenGebrekFoto>> getNenGebrekFotos(int gebrekId) async {
+    final db = await database;
+    final maps = await db.query(
+      'nen_gebrek_fotos',
+      where: 'gebrek_id = ?',
+      whereArgs: [gebrekId],
+      orderBy: 'volgorde',
+    );
+    return maps.map((m) => NenGebrekFoto.fromMap(m)).toList();
+  }
+
+  Future<int> insertNenGebrekFoto(NenGebrekFoto foto) async {
+    final db = await database;
+    return await db.insert('nen_gebrek_fotos', foto.toMap());
+  }
+
+  Future<void> deleteNenGebrekFoto(int id) async {
+    final db = await database;
+    await db.delete('nen_gebrek_fotos', where: 'id = ?', whereArgs: [id]);
   }
 }

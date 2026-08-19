@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>MijnRapportage gebruikt de camera om foto's te maken van gebreken tijdens inspecties.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MijnRapportage gebruikt je fotobibliotheek om bestaande foto's toe te voegen aan inspecties.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

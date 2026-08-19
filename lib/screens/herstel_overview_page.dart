@@ -113,6 +113,10 @@ class _HerstelOverviewPageState extends State<HerstelOverviewPage> {
         notFound++;
       } on HerstelSyncException {
         failed++;
+      } catch (_) {
+        // Eén onverwacht struikelend gebrek mag de hele bulk-sync niet
+        // afbreken; de rest wordt gewoon verder opgehaald.
+        failed++;
       }
     }
 
@@ -159,28 +163,39 @@ class _HerstelOverviewPageState extends State<HerstelOverviewPage> {
     for (final entry in repaired) {
       final defectId = entry.key;
       var herstel = entry.value;
-      final token = (herstel.token ?? '').isEmpty
-          ? await _db.ensureHerstelToken(defectId)
-          : herstel.token!;
-      if (herstel.token != token) {
-        herstel = herstel.copyWith(token: token);
-        _herstelen[defectId] = herstel;
+      String labelVoor(int id) {
+        final defect = _defects.where((d) => d.id == id).firstOrNull;
+        return defect != null && defect.locationFull.isNotEmpty
+            ? defect.locationFull
+            : 'Gebrek #$id';
       }
-      final result = await sync.push(token, herstel);
-      switch (result.outcome) {
-        case HerstelPushOutcome.pushed:
-          pushed++;
-          break;
-        case HerstelPushOutcome.alreadySubmitted:
-          alreadySubmitted++;
-          break;
-        case HerstelPushOutcome.failed:
-          final defect = _defects.where((d) => d.id == defectId).firstOrNull;
-          final label = defect != null && defect.locationFull.isNotEmpty
-              ? defect.locationFull
-              : 'Gebrek #$defectId';
-          failures.add('$label: ${result.error ?? 'onbekende fout'}');
-          break;
+
+      try {
+        final token = (herstel.token ?? '').isEmpty
+            ? await _db.ensureHerstelToken(defectId)
+            : herstel.token!;
+        if (herstel.token != token) {
+          herstel = herstel.copyWith(token: token);
+          _herstelen[defectId] = herstel;
+        }
+        final result = await sync.push(token, herstel);
+        switch (result.outcome) {
+          case HerstelPushOutcome.pushed:
+            pushed++;
+            break;
+          case HerstelPushOutcome.alreadySubmitted:
+            alreadySubmitted++;
+            break;
+          case HerstelPushOutcome.failed:
+            failures.add(
+              '${labelVoor(defectId)}: ${result.error ?? 'onbekende fout'}',
+            );
+            break;
+        }
+      } catch (e) {
+        // Vangnet: één mislukt gebrek mag de rest van de bulk-push niet
+        // blokkeren.
+        failures.add('${labelVoor(defectId)}: $e');
       }
     }
 

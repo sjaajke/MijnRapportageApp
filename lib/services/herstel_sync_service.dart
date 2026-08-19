@@ -220,9 +220,18 @@ class HerstelSyncService {
         'De herstel-service gaf een onverwachte fout (${response.statusCode}).',
       );
     }
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    try {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw HerstelSyncException(
+        'Onverwacht antwoord van de herstel-service ontvangen.',
+      );
+    }
   }
 
+  /// Best-effort, net als [_uploadPhotoIfPresent]: is Storage onbereikbaar of
+  /// niet goed geconfigureerd, dan mag dat het ophalen van de (belangrijkere)
+  /// tekstvelden niet blokkeren. De herstelmelding komt dan zonder foto binnen.
   Future<String?> _downloadPhotoIfPresent(
     String? storageBucket,
     String token,
@@ -234,19 +243,16 @@ class HerstelSyncService {
     final uri = Uri.parse(
       'https://firebasestorage.googleapis.com/v0/b/$storageBucket/o/$objectPath?alt=media',
     );
-    http.Response response;
     try {
-      response = await http.get(uri).timeout(_timeout);
-    } catch (e) {
-      throw HerstelSyncException('Kon foto niet downloaden: $e');
-    }
-    if (response.statusCode == 404) return null;
-    if (response.statusCode != 200) {
-      throw HerstelSyncException(
-        'Kon foto niet downloaden (${response.statusCode}).',
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return null;
+      return await PhotoService().saveBytesAsPhoto(
+        response.bodyBytes,
+        inspectionId,
       );
+    } catch (_) {
+      return null;
     }
-    return PhotoService().saveBytesAsPhoto(response.bodyBytes, inspectionId);
   }
 
   String? _stringField(Map<String, dynamic> fields, String key) {

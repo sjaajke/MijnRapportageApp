@@ -123,6 +123,14 @@ class _HerstelPageState extends State<HerstelPage> {
       if (!mounted) return;
       setState(() => _ophalenBezig = false);
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      // Vangnet: welke onverwachte fout de herstel-service ook geeft, de knop
+      // mag niet blijven hangen en de rest van de app moet gewoon doorwerken.
+      if (!mounted) return;
+      setState(() => _ophalenBezig = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Ophalen is niet gelukt: $e')),
+      );
     }
   }
 

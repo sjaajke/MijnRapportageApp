@@ -19,6 +19,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import '../services/firebase_bootstrap.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/section_header.dart';
 import '../widgets/web_photo_picker.dart';
@@ -31,7 +32,16 @@ import '../widgets/web_photo_picker.dart';
 class HerstelSubmitPage extends StatefulWidget {
   final String token;
 
-  const HerstelSubmitPage({super.key, required this.token});
+  /// Foutmelding van een mislukte Firebase-initialisatie. Is deze gevuld, dan
+  /// is het formulier gewoon in te vullen, maar wordt er bij "Versturen" eerst
+  /// opnieuw geprobeerd verbinding te maken.
+  final String? firebaseFout;
+
+  const HerstelSubmitPage({
+    super.key,
+    required this.token,
+    this.firebaseFout,
+  });
 
   @override
   State<HerstelSubmitPage> createState() => _HerstelSubmitPageState();
@@ -48,6 +58,7 @@ class _HerstelSubmitPageState extends State<HerstelSubmitPage> {
   bool _versturen = false;
   bool _verstuurd = false;
   String? _foutmelding;
+  late bool _firebaseOffline = widget.firebaseFout != null;
 
   Future<void> _pickDatum() async {
     final now = DateTime.now();
@@ -67,6 +78,23 @@ class _HerstelSubmitPageState extends State<HerstelSubmitPage> {
       _versturen = true;
       _foutmelding = null;
     });
+
+    // Lukte de initialisatie bij het opstarten niet, probeer het hier opnieuw:
+    // de verbinding kan intussen hersteld zijn.
+    final firebaseOk = await FirebaseBootstrap.ensureInitialized();
+    if (!mounted) return;
+    if (!firebaseOk) {
+      setState(() {
+        _versturen = false;
+        _firebaseOffline = true;
+        _foutmelding =
+            'Geen verbinding met de herstel-service. Controleer je internetverbinding '
+            'en druk opnieuw op Versturen — je ingevulde gegevens blijven staan.';
+      });
+      return;
+    }
+    setState(() => _firebaseOffline = false);
+
     try {
       final ref = FirebaseStorage.instance.ref('herstel_photos/${widget.token}');
       String? photo1Path;
@@ -104,12 +132,22 @@ class _HerstelSubmitPageState extends State<HerstelSubmitPage> {
         _versturen = false;
         _verstuurd = true;
       });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _versturen = false;
+        _foutmelding = e.code == 'permission-denied'
+            ? 'Versturen is niet gelukt. Mogelijk is dit gebrek al eerder gemeld via deze link.'
+            : 'Versturen is niet gelukt (${e.code}). Controleer je internetverbinding '
+                  'en probeer het opnieuw — je ingevulde gegevens blijven staan.';
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _versturen = false;
         _foutmelding =
-            'Versturen is niet gelukt. Mogelijk is dit gebrek al eerder gemeld via deze link. ($e)';
+            'Versturen is niet gelukt. Controleer je internetverbinding en probeer '
+            'het opnieuw — je ingevulde gegevens blijven staan. ($e)';
       });
     }
   }
@@ -153,6 +191,27 @@ class _HerstelSubmitPageState extends State<HerstelSubmitPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_firebaseOffline)
+              Card(
+                color: Colors.orange.shade50,
+                child: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.cloud_off, color: Colors.orange),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Geen verbinding met de herstel-service. Je kunt het formulier '
+                          'gewoon invullen; bij "Versturen" wordt opnieuw geprobeerd '
+                          'verbinding te maken.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const SectionHeader(title: 'Status'),
             Card(
               color: _isHersteld ? Colors.green.shade50 : Colors.orange.shade50,

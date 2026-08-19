@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
@@ -45,6 +46,7 @@ class _HomePageState extends State<HomePage> {
   final _db = DatabaseService();
   List<Inspection> _inspections = [];
   bool _loading = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -54,11 +56,19 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadInspections() async {
     setState(() => _loading = true);
-    final inspections = await _db.getInspections();
-    setState(() {
-      _inspections = inspections;
-      _loading = false;
-    });
+    try {
+      final inspections = await _db.getInspections();
+      if (!mounted) return;
+      setState(() {
+        _inspections = inspections;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Database openen mislukt: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _importZip() async {
@@ -390,6 +400,14 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _copyError(String error) async {
+    await Clipboard.setData(ClipboardData(text: error));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Foutmelding gekopieerd')),
+    );
+  }
+
   void _toggleLanguage() {
     final current = AppLocalizations.of(context).locale.languageCode;
     final next = current == 'nl' ? const Locale('en') : const Locale('nl');
@@ -438,6 +456,38 @@ class _HomePageState extends State<HomePage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48),
+                        const SizedBox(height: 12),
+                        Text(_loadError!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton.icon(
+                              onPressed: _loadInspections,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Opnieuw proberen'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _copyError(_loadError!),
+                              icon: const Icon(Icons.copy),
+                              label: const Text('Foutmelding kopiëren'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                )
           : _inspections.isEmpty
               ? Center(
                   child: Text(
