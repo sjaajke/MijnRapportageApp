@@ -55,7 +55,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadInspections() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final inspections = await _db.getInspections();
       if (!mounted) return;
@@ -107,7 +110,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _createInspection() async {
-    final id = await _db.createInspection();
+    final int id;
+    try {
+      id = await _db.createInspection();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Aanmaken mislukt: $e')),
+      );
+      return;
+    }
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -463,7 +475,8 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline, size: 48),
+                        const Icon(Icons.error_outline,
+                            size: 48, color: Colors.red),
                         const SizedBox(height: 12),
                         Text(_loadError!, textAlign: TextAlign.center),
                         const SizedBox(height: 16),
@@ -488,7 +501,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 )
-          : _inspections.isEmpty
+              : _inspections.isEmpty
               ? Center(
                   child: Text(
                     l10n.noInspections,

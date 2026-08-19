@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
