@@ -34,19 +34,68 @@ import 'solar_installations_list_page.dart';
 import 'defects_list_page.dart';
 import 'solar_inverter_detail_page.dart';
 
-class SolarInstallationDetailPage extends StatefulWidget {
+class SolarInstallationDetailPage extends StatelessWidget {
   final int installationId;
   final int inspectionId;
 
   const SolarInstallationDetailPage({super.key, required this.installationId, required this.inspectionId});
 
   @override
-  State<SolarInstallationDetailPage> createState() =>
-      _SolarInstallationDetailPageState();
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.solarInstallation)),
+      body: Column(
+        children: [
+          _NavBar(inspectionId: inspectionId),
+          Expanded(
+            child: SolarInstallationDetailView(
+              key: ValueKey(installationId),
+              installationId: installationId,
+              inspectionId: inspectionId,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _SolarInstallationDetailPageState
-    extends State<SolarInstallationDetailPage> {
+/// The editable installation form, extracted so it can be embedded either as
+/// a full [SolarInstallationDetailPage] or inline in a master-detail split
+/// view.
+class SolarInstallationDetailView extends StatefulWidget {
+  final int installationId;
+  final int inspectionId;
+
+  /// Called after the Save button persists changes, instead of the default
+  /// pop-navigation, so an embedding split view can clear the selection.
+  final VoidCallback? onSavedAndClose;
+
+  /// Called whenever the installation is persisted, so an embedding list can
+  /// refresh its summary (location/panel count) live.
+  final ValueChanged<SolarInstallation>? onInstallationUpdated;
+
+  /// Called if the installation no longer exists (e.g. deleted elsewhere),
+  /// instead of the default pop-navigation.
+  final VoidCallback? onNotFound;
+
+  const SolarInstallationDetailView({
+    super.key,
+    required this.installationId,
+    required this.inspectionId,
+    this.onSavedAndClose,
+    this.onInstallationUpdated,
+    this.onNotFound,
+  });
+
+  @override
+  State<SolarInstallationDetailView> createState() =>
+      _SolarInstallationDetailViewState();
+}
+
+class _SolarInstallationDetailViewState
+    extends State<SolarInstallationDetailView> {
   final _db = DatabaseService();
 
   final _locationController = TextEditingController();
@@ -77,7 +126,12 @@ class _SolarInstallationDetailPageState
   Future<void> _loadData() async {
     final inst = await _db.getSolarInstallation(widget.installationId);
     if (inst == null) {
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      if (widget.onNotFound != null) {
+        widget.onNotFound!();
+      } else {
+        Navigator.pop(context);
+      }
       return;
     }
 
@@ -388,6 +442,7 @@ class _SolarInstallationDetailPageState
                       initialValue: row.volgnummer,
                       decoration: cellDecoration,
                       style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      isExpanded: true,
                       items: List.generate(
                         n,
                         (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}')),
@@ -430,6 +485,7 @@ class _SolarInstallationDetailPageState
                       initialValue: row.leidingType.isEmpty ? null : row.leidingType,
                       decoration: cellDecoration,
                       style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      isExpanded: true,
                       items: const ['Cu', 'Al', 'Cu/Al']
                           .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                           .toList(),
@@ -450,6 +506,7 @@ class _SolarInstallationDetailPageState
                       initialValue: row.leidingMm2.isEmpty ? null : row.leidingMm2,
                       decoration: cellDecoration,
                       style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      isExpanded: true,
                       items: const [
                         '4', '6', '10', '16', '25', '35', '50', '70', '95', '120',
                       ]
@@ -529,6 +586,7 @@ class _SolarInstallationDetailPageState
     );
     await _db.updateSolarInstallation(updated);
     _installation = updated;
+    widget.onInstallationUpdated?.call(updated);
   }
 
   @override
@@ -552,31 +610,17 @@ class _SolarInstallationDetailPageState
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: Text(AppLocalizations.of(context).solarInstallation)),
-        body: Column(
-          children: [
-            _NavBar(inspectionId: widget.inspectionId),
-            const Expanded(child: Center(child: CircularProgressIndicator())),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final inst = _installation!;
     final l10n = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.solarInstallation)),
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _NavBar(inspectionId: widget.inspectionId),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
             LocationRow(
               label: 'Locatie',
               controller: _locationController,
@@ -826,7 +870,7 @@ class _SolarInstallationDetailPageState
                   child: PhotoContainer(
                     label: l10n.roofSetup1,
                     photoPath: inst.photoRoof1Path,
-                    height: 150,
+                    aspectRatio: 4 / 3,
                     onPhotoSelected: (path) {
                       setState(() {
                         _installation = inst.copyWith(photoRoof1Path: path);
@@ -840,7 +884,7 @@ class _SolarInstallationDetailPageState
                   child: PhotoContainer(
                     label: l10n.roofSetup2,
                     photoPath: inst.photoRoof2Path,
-                    height: 150,
+                    aspectRatio: 4 / 3,
                     onPhotoSelected: (path) {
                       setState(() {
                         _installation = inst.copyWith(photoRoof2Path: path);
@@ -857,7 +901,7 @@ class _SolarInstallationDetailPageState
                   child: PhotoContainer(
                     label: l10n.inverter1,
                     photoPath: inst.photoInverter1Path,
-                    height: 150,
+                    aspectRatio: 4 / 3,
                     onPhotoSelected: (path) {
                       setState(() {
                         _installation =
@@ -872,7 +916,7 @@ class _SolarInstallationDetailPageState
                   child: PhotoContainer(
                     label: l10n.inverter2,
                     photoPath: inst.photoInverter2Path,
-                    height: 150,
+                    aspectRatio: 4 / 3,
                     onPhotoSelected: (path) {
                       setState(() {
                         _installation =
@@ -897,14 +941,14 @@ class _SolarInstallationDetailPageState
                 messenger.showSnackBar(
                   SnackBar(content: Text(l10n.saved)),
                 );
-                navigator.pop();
+                if (widget.onSavedAndClose != null) {
+                  widget.onSavedAndClose!();
+                } else {
+                  navigator.pop();
+                }
               },
               child: Text(l10n.save),
             ),
-          ],
-        ),
-      ),
-          ),
         ],
       ),
     );
@@ -930,7 +974,7 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.home_outlined, 'Inspectie',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.electrical_services, 'Verdelers',
+            _btn(context, Icons.lan, 'Verdelers',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.solar_power, 'Zonnestroom',

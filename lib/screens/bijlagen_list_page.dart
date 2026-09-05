@@ -20,22 +20,23 @@ import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import '../models/tekening.dart';
+import 'package:pdfx/pdfx.dart' as pdfx;
+import '../models/bijlage.dart';
 import '../services/database_service.dart';
-import 'tekening_detail_page.dart';
 
-class TekeningenListPage extends StatefulWidget {
+class BijlagenListPage extends StatefulWidget {
   final int inspectionId;
 
-  const TekeningenListPage({super.key, required this.inspectionId});
+  const BijlagenListPage({super.key, required this.inspectionId});
 
   @override
-  State<TekeningenListPage> createState() => _TekeningenListPageState();
+  State<BijlagenListPage> createState() => _BijlagenListPageState();
 }
 
-class _TekeningenListPageState extends State<TekeningenListPage> {
+class _BijlagenListPageState extends State<BijlagenListPage> {
   final _db = DatabaseService();
-  List<Tekening> _tekeningen = [];
+  List<Bijlage> _bijlagen = [];
+  final Map<int, int> _pageCounts = {};
   bool _loading = true;
 
   @override
@@ -45,74 +46,57 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
   }
 
   Future<void> _load() async {
-    final list = await _db.getTekeningen(widget.inspectionId);
+    final list = await _db.getBijlagen(widget.inspectionId);
     if (mounted) {
       setState(() {
-        _tekeningen = list;
+        _bijlagen = list;
         _loading = false;
       });
+    }
+    for (final b in list) {
+      if (b.id == null || _pageCounts.containsKey(b.id)) continue;
+      try {
+        final doc = await pdfx.PdfDocument.openFile(b.bestandPad);
+        final count = doc.pagesCount;
+        await doc.close();
+        if (mounted) setState(() => _pageCounts[b.id!] = count);
+      } catch (_) {}
     }
   }
 
   Future<void> _pickAndAdd() async {
     const typeGroup = XTypeGroup(
-      label: 'Tekeningen',
-      extensions: ['jpg', 'jpeg', 'png', 'pdf'],
-      uniformTypeIdentifiers: ['public.jpeg', 'public.png', 'com.adobe.pdf'],
+      label: 'PDF',
+      extensions: ['pdf'],
+      uniformTypeIdentifiers: ['com.adobe.pdf'],
     );
     final file = await openFile(acceptedTypeGroups: [typeGroup]);
     if (file == null) return;
 
-    final ext = p.extension(file.path).toLowerCase().replaceAll('.', '');
-    final bestandType = ext == 'pdf' ? 'pdf' : 'jpeg';
-
     final docs = await getApplicationDocumentsDirectory();
-    final destDir = Directory(p.join(docs.path, 'tekeningen'));
+    final destDir = Directory(p.join(docs.path, 'bijlagen'));
     await destDir.create(recursive: true);
-    final dest = p.join(
-        destDir.path, '${DateTime.now().millisecondsSinceEpoch}.$ext');
+    final dest =
+        p.join(destDir.path, '${DateTime.now().millisecondsSinceEpoch}.pdf');
     await File(file.path).copy(dest);
 
     final naam = p.basenameWithoutExtension(file.name);
 
-    final id = await _db.insertTekening(Tekening(
+    await _db.insertBijlage(Bijlage(
       inspectionId: widget.inspectionId,
       naam: naam,
       bestandPad: dest,
-      bestandType: bestandType,
     ));
 
     await _load();
-
-    if (mounted) {
-      final created = _tekeningen.firstWhere(
-        (t) => t.id == id,
-        orElse: () => Tekening(
-            inspectionId: widget.inspectionId,
-            naam: naam,
-            bestandPad: dest,
-            bestandType: bestandType),
-      );
-      _openTekening(created);
-    }
   }
 
-  void _openTekening(Tekening tekening) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TekeningDetailPage(tekening: tekening),
-      ),
-    ).then((_) => _load());
-  }
-
-  Future<void> _deleteTekening(Tekening tekening) async {
+  Future<void> _deleteBijlage(Bijlage bijlage) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tekening verwijderen'),
-        content: Text(
-            'Weet u zeker dat u "${tekening.naam}" wilt verwijderen?\nAlle bijbehorende pins worden ook verwijderd.'),
+        title: const Text('Bijlage verwijderen'),
+        content: Text('Weet u zeker dat u "${bijlage.naam}" wilt verwijderen?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -125,16 +109,16 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
         ],
       ),
     );
-    if (confirmed == true && tekening.id != null) {
-      await _db.deleteTekening(tekening.id!);
-      final file = File(tekening.bestandPad);
+    if (confirmed == true && bijlage.id != null) {
+      await _db.deleteBijlage(bijlage.id!);
+      final file = File(bijlage.bestandPad);
       if (await file.exists()) await file.delete();
       await _load();
     }
   }
 
-  Future<void> _renameTekening(Tekening tekening) async {
-    final controller = TextEditingController(text: tekening.naam);
+  Future<void> _renameBijlage(Bijlage bijlage) async {
+    final controller = TextEditingController(text: bijlage.naam);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -157,39 +141,43 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
       ),
     );
     controller.dispose();
-    if (result != null && result.isNotEmpty && tekening.id != null) {
-      await _db.updateTekening(tekening.copyWith(naam: result));
+    if (result != null && result.isNotEmpty && bijlage.id != null) {
+      await _db.updateBijlage(bijlage.copyWith(naam: result));
       await _load();
     }
   }
 
-  IconData _typeIcon(String bestandType) {
-    if (bestandType == 'pdf') return Icons.picture_as_pdf;
-    return Icons.image_outlined;
+  void _openBijlage(Bijlage bijlage) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _BijlagePreviewPage(bijlage: bijlage),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tekening inspectie'),
+        title: const Text('Bijlagen'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'Tekening toevoegen',
+            tooltip: 'Bijlage toevoegen',
             onPressed: _pickAndAdd,
           ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _tekeningen.isEmpty
+          : _bijlagen.isEmpty
               ? _buildEmpty()
               : _buildList(),
-      floatingActionButton: _tekeningen.isNotEmpty
+      floatingActionButton: _bijlagen.isNotEmpty
           ? FloatingActionButton(
               onPressed: _pickAndAdd,
-              tooltip: 'Tekening toevoegen',
+              tooltip: 'Bijlage toevoegen',
               child: const Icon(Icons.add),
             )
           : null,
@@ -203,17 +191,17 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.map_outlined, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.attach_file, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
-              'Nog geen tekeningen toegevoegd.',
+              'Nog geen bijlagen toegevoegd.',
               style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Ondersteunde formaten: JPEG, PNG, PDF.\n'
-              'AutoCad tekeningen: exporteer eerst naar PDF vanuit AutoCAD.',
+              'Voeg PDF-documenten toe, zoals certificaten of meetrapporten.\n'
+              'Ze worden als bijlage achteraan het rapport toegevoegd.',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
               textAlign: TextAlign.center,
             ),
@@ -221,7 +209,7 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
             ElevatedButton.icon(
               onPressed: _pickAndAdd,
               icon: const Icon(Icons.add),
-              label: const Text('Tekening toevoegen'),
+              label: const Text('Bijlage toevoegen'),
             ),
           ],
         ),
@@ -232,29 +220,31 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
   Widget _buildList() {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: _tekeningen.length,
+      itemCount: _bijlagen.length,
       itemBuilder: (_, index) {
-        final tekening = _tekeningen[index];
+        final bijlage = _bijlagen[index];
+        final pageCount = bijlage.id != null ? _pageCounts[bijlage.id!] : null;
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
-            leading: Icon(
-              _typeIcon(tekening.bestandType),
-              color: const Color(0xFF1976D2),
-              size: 32,
-            ),
+            leading: const Icon(Icons.picture_as_pdf,
+                color: Color(0xFF1976D2), size: 32),
             title: Text(
-              tekening.naam.isNotEmpty ? tekening.naam : '(naamloos)',
+              bijlage.naam.isNotEmpty ? bijlage.naam : '(naamloos)',
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
-              tekening.bestandType.toUpperCase(),
+              pageCount == null
+                  ? 'PDF'
+                  : pageCount == 1
+                      ? 'PDF · 1 pagina'
+                      : 'PDF · $pageCount pagina\'s',
               style: const TextStyle(fontSize: 12),
             ),
             trailing: PopupMenuButton<String>(
               onSelected: (value) {
-                if (value == 'rename') _renameTekening(tekening);
-                if (value == 'delete') _deleteTekening(tekening);
+                if (value == 'rename') _renameBijlage(bijlage);
+                if (value == 'delete') _deleteBijlage(bijlage);
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(
@@ -276,10 +266,57 @@ class _TekeningenListPageState extends State<TekeningenListPage> {
                 ),
               ],
             ),
-            onTap: () => _openTekening(tekening),
+            onTap: () => _openBijlage(bijlage),
           ),
         );
       },
+    );
+  }
+}
+
+class _BijlagePreviewPage extends StatefulWidget {
+  final Bijlage bijlage;
+
+  const _BijlagePreviewPage({required this.bijlage});
+
+  @override
+  State<_BijlagePreviewPage> createState() => _BijlagePreviewPageState();
+}
+
+class _BijlagePreviewPageState extends State<_BijlagePreviewPage> {
+  pdfx.PdfControllerPinch? _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = pdfx.PdfControllerPinch(
+      document: pdfx.PdfDocument.openFile(widget.bijlage.bestandPad)
+          .catchError((e) {
+        setState(() => _error = 'Kan PDF niet openen: $e');
+        throw e;
+      }),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.bijlage.naam)),
+      body: _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(_error!, textAlign: TextAlign.center),
+              ),
+            )
+          : pdfx.PdfViewPinch(controller: _controller!),
     );
   }
 }

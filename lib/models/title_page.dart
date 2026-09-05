@@ -63,6 +63,7 @@ class TitlePage {
   final bool dateColorWhite;
   final bool codeColorWhite;
   final bool projectColorWhite;
+  final bool layoutLocked;
 
   TitlePage({
     this.id,
@@ -111,6 +112,7 @@ class TitlePage {
     this.dateColorWhite = false,
     this.codeColorWhite = false,
     this.projectColorWhite = false,
+    this.layoutLocked = true,
   });
 
   Map<String, dynamic> toMap() {
@@ -145,6 +147,7 @@ class TitlePage {
       'date_color_white': dateColorWhite ? 1 : 0,
       'code_color_white': codeColorWhite ? 1 : 0,
       'project_color_white': projectColorWhite ? 1 : 0,
+      'layout_locked': layoutLocked ? 1 : 0,
     };
   }
 
@@ -182,6 +185,7 @@ class TitlePage {
       dateColorWhite: (map['date_color_white'] as int? ?? 0) == 1,
       codeColorWhite: (map['code_color_white'] as int? ?? 0) == 1,
       projectColorWhite: (map['project_color_white'] as int? ?? 0) == 1,
+      layoutLocked: (map['layout_locked'] as int? ?? 1) == 1,
     );
   }
 
@@ -201,6 +205,7 @@ class TitlePage {
     bool? dateColorWhite,
     bool? codeColorWhite,
     bool? projectColorWhite,
+    bool? layoutLocked,
   }) {
     return TitlePage(
       id: id ?? this.id,
@@ -235,6 +240,7 @@ class TitlePage {
       dateColorWhite: dateColorWhite ?? this.dateColorWhite,
       codeColorWhite: codeColorWhite ?? this.codeColorWhite,
       projectColorWhite: projectColorWhite ?? this.projectColorWhite,
+      layoutLocked: layoutLocked ?? this.layoutLocked,
     );
   }
 }

@@ -31,12 +31,68 @@ import '../models/measurement_instrument.dart';
 import '../models/solar_inverter.dart';
 import '../models/solar_string_measurement.dart';
 import '../models/steekproef_item.dart';
+import '../models/switchboard.dart';
 import '../models/tekening_pin.dart';
 import 'database_service.dart';
 import 'photo_service.dart';
 
 class PdfExportService {
   final _db = DatabaseService();
+
+  static const _classificationBgColors = {
+    'Rd': PdfColor.fromInt(0xFFEF5350),
+    'Or': PdfColor.fromInt(0xFFFF9800),
+    'Ge': PdfColor.fromInt(0xFFFFEE58),
+    'Bl': PdfColor.fromInt(0xFF42A5F5),
+    'Pa': PdfColor.fromInt(0xFFAB47BC),
+    'Gr': PdfColor.fromInt(0xFF9E9E9E),
+  };
+  static const _classificationFgColors = {
+    'Rd': PdfColors.white,
+    'Or': PdfColors.white,
+    'Ge': PdfColor.fromInt(0xFF5D4037),
+    'Bl': PdfColors.white,
+    'Pa': PdfColors.white,
+    'Gr': PdfColors.white,
+  };
+
+  /// Renders a classification code (Rd/Or/Ge/Bl/Pa/Gr) as a colored circle
+  /// badge followed by the location text, e.g. for a defect's header line.
+  pw.Widget _classificationSubTitle(String classification, String locationFull) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Container(
+            width: 20,
+            height: 20,
+            alignment: pw.Alignment.center,
+            decoration: pw.BoxDecoration(
+              shape: pw.BoxShape.circle,
+              color: _classificationBgColors[classification] ?? PdfColors.grey400,
+            ),
+            child: pw.Text(
+              classification,
+              style: pw.TextStyle(
+                fontSize: 8,
+                fontWeight: pw.FontWeight.bold,
+                color: _classificationFgColors[classification] ?? PdfColors.white,
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 6),
+          pw.Text(
+            locationFull,
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   pw.Widget _herstelQrCode(String? domain, String? token) {
     if (domain == null || domain.isEmpty || token == null || token.isEmpty) {
@@ -126,6 +182,30 @@ class PdfExportService {
       if (d.id != null) {
         tokenByDefect[d.id!] = await _db.ensureHerstelToken(d.id!);
       }
+    }
+
+    final bijlagen = await _db.getBijlagen(inspectionId);
+    final Map<int, List<Uint8List>> bijlagePages = {};
+    for (final b in bijlagen) {
+      if (b.id == null || b.bestandPad.isEmpty) continue;
+      if (!File(b.bestandPad).existsSync()) continue;
+      try {
+        final doc = await pdfx.PdfDocument.openFile(b.bestandPad);
+        final pages = <Uint8List>[];
+        for (int i = 1; i <= doc.pagesCount; i++) {
+          final page = await doc.getPage(i);
+          final img = await page.render(
+            width: page.width * 2,
+            height: page.height * 2,
+            format: pdfx.PdfPageImageFormat.png,
+            backgroundColor: '#ffffff',
+          );
+          await page.close();
+          if (img != null) pages.add(img.bytes);
+        }
+        await doc.close();
+        if (pages.isNotEmpty) bijlagePages[b.id!] = pages;
+      } catch (_) {}
     }
 
     final pdf = pw.Document();
@@ -311,7 +391,8 @@ class PdfExportService {
                 generalData.clientAddress.isNotEmpty ||
                 generalData.clientPostalCity.isNotEmpty ||
                 generalData.clientContact.isNotEmpty ||
-                generalData.clientPhone.isNotEmpty) ...[
+                generalData.clientPhone.isNotEmpty ||
+                generalData.clientEmail.isNotEmpty) ...[
               _subTitle('Opdrachtgever'),
               if (generalData.clientCompany.isNotEmpty)
                 _labelValue('Naam Bedrijf', generalData.clientCompany),
@@ -323,6 +404,8 @@ class PdfExportService {
                 _labelValue('Contactpersoon', generalData.clientContact),
               if (generalData.clientPhone.isNotEmpty)
                 _labelValue('Telefoonnummer', generalData.clientPhone),
+              if (generalData.clientEmail.isNotEmpty)
+                _labelValue('Mail', generalData.clientEmail),
               pw.SizedBox(height: 10),
             ],
             if (generalData.installationResponsibleName.isNotEmpty ||
@@ -340,7 +423,8 @@ class PdfExportService {
                 generalData.inspectionAddressStreet.isNotEmpty ||
                 generalData.inspectionAddressPostalCity.isNotEmpty ||
                 generalData.inspectionAddressContact.isNotEmpty ||
-                generalData.inspectionAddressPhone.isNotEmpty) ...[
+                generalData.inspectionAddressPhone.isNotEmpty ||
+                generalData.inspectionAddressEmail.isNotEmpty) ...[
               _subTitle('Inspectieadres'),
               if (generalData.inspectionAddressName.isNotEmpty)
                 _labelValue('Naam', generalData.inspectionAddressName),
@@ -355,6 +439,8 @@ class PdfExportService {
               if (generalData.inspectionAddressPhone.isNotEmpty)
                 _labelValue(
                     'Telefoonnummer', generalData.inspectionAddressPhone),
+              if (generalData.inspectionAddressEmail.isNotEmpty)
+                _labelValue('Mail', generalData.inspectionAddressEmail),
               pw.SizedBox(height: 10),
             ],
             if (generalData.inspectorCompany.isNotEmpty ||
@@ -467,25 +553,27 @@ class PdfExportService {
                 details.methodeMetingen.isNotEmpty ||
                 details.methodeAanvullendOnderzoek.isNotEmpty ||
                 details.methodeCriteria.isNotEmpty) ...[
+              pw.NewPage(),
               _subTitle('Methode'),
               if (details.methodeVisueleInspectie.isNotEmpty) ...[
                 _labelValue('Visuele inspectie', ''),
-                _textBlock(details.methodeVisueleInspectie),
+                _formattedTextBlock(details.methodeVisueleInspectie),
                 pw.SizedBox(height: 6),
               ],
               if (details.methodeMetingen.isNotEmpty) ...[
                 _labelValue('Metingen en beproevingen', ''),
-                _textBlock(details.methodeMetingen),
+                _formattedTextBlock(details.methodeMetingen),
                 pw.SizedBox(height: 6),
               ],
               if (details.methodeAanvullendOnderzoek.isNotEmpty) ...[
                 _labelValue('Aanvullend onderzoek', ''),
-                _textBlock(details.methodeAanvullendOnderzoek),
+                _formattedTextBlock(details.methodeAanvullendOnderzoek),
                 pw.SizedBox(height: 6),
               ],
               if (details.methodeCriteria.isNotEmpty) ...[
-                _subTitle('Afkeuringscriteria'),
-                _textBlock(details.methodeCriteria),
+                pw.NewPage(),
+                _subTitle('Classificatie van constateringen'),
+                _formattedTextBlock(details.methodeCriteria),
               ],
             ],
           ],
@@ -510,8 +598,11 @@ class PdfExportService {
             ],
             _constateringenTabel(defects.map((d) => d.classification).toList()),
             pw.SizedBox(height: 10),
-            if (assessment.volgendInspectie.isNotEmpty)
-              _labelValue('Volgende inspectie', assessment.volgendInspectie),
+            if (assessment.volgendInspectie.isNotEmpty) ...[
+              _subTitle('Volgende inspectie'),
+              _textBlock(assessment.volgendInspectie),
+              pw.SizedBox(height: 10),
+            ],
             pw.SizedBox(height: 16),
             _subTitle('Ondertekening'),
             pw.SizedBox(height: 8),
@@ -519,7 +610,7 @@ class PdfExportService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Expanded(child: _signatoryBlock(
-                  'Ondertekenaar 1',
+                  '',
                   assessment.naam1,
                   assessment.functie1,
                   assessment.datum1,
@@ -527,7 +618,7 @@ class PdfExportService {
                 )),
                 pw.SizedBox(width: 20),
                 pw.Expanded(child: _signatoryBlock(
-                  'Ondertekenaar 2',
+                  '',
                   assessment.naam2,
                   assessment.functie2,
                   assessment.datum2,
@@ -541,7 +632,92 @@ class PdfExportService {
     }
 
     // Switchboards
-    for (final sb in switchboards) {
+    pw.Widget switchboardBlock(Switchboard sb) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Verdeler: ${sb.name}'),
+          pw.SizedBox(height: 10),
+          if (sb.locationFull.isNotEmpty)
+            _labelValue('Locatie', sb.locationFull),
+          if (sb.system.isNotEmpty) _labelValue('Stelsel', sb.system),
+          if (sb.shortCircuitCurrent != null)
+            _labelValue('Kortsluitstroom', '${sb.shortCircuitCurrent} A'),
+          if (sb.protection.isNotEmpty)
+            _labelValue('Voorbeveiliging', sb.protection),
+          if (sb.protectionClass.isNotEmpty)
+            _labelValue('Beschermingsgraad omhulsel', sb.protectionClass),
+          if (sb.cableCrossSection != null)
+            _labelValue('Doorsnede', '${sb.cableCrossSection} mm²'),
+          if (sb.cableLength != null)
+            _labelValue('Lengte', '${sb.cableLength} m'),
+          if (sb.mainSwitchCurrent != null || sb.mainSwitchPoles != null)
+            _labelValue('Hoofdschakelaar',
+                '${sb.mainSwitchCurrent ?? '-'} A, ${sb.mainSwitchPoles ?? '-'} polig'),
+          pw.SizedBox(height: 10),
+          if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() ||
+              sb.photo2Path != null && File(sb.photo2Path!).existsSync()) ...[
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync())
+                  pw.Expanded(
+                    child: pw.SizedBox(
+                      height: 130,
+                      child: pw.Image(
+                        pw.MemoryImage(File(sb.photo1Path!).readAsBytesSync()),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() &&
+                    sb.photo2Path != null && File(sb.photo2Path!).existsSync())
+                  pw.SizedBox(width: 8),
+                if (sb.photo2Path != null && File(sb.photo2Path!).existsSync())
+                  pw.Expanded(
+                    child: pw.SizedBox(
+                      height: 130,
+                      child: pw.Image(
+                        pw.MemoryImage(File(sb.photo2Path!).readAsBytesSync()),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            pw.SizedBox(height: 10),
+          ],
+          if (sb.includeChecklistInPdf) ...[
+            if (sb.visualInspection.isNotEmpty) ...[
+              _subTitle('Visuele inspectie'),
+              ...sb.visualInspection.entries.map(
+                (e) => _checklistRow(e.key, e.value),
+              ),
+              pw.SizedBox(height: 10),
+            ],
+            if (sb.measurements.isNotEmpty) ...[
+              _subTitle('Metingen en beproevingen'),
+              ...sb.measurements.entries.map(
+                (e) => _checklistRow(e.key, e.value),
+              ),
+            ],
+          ],
+        ],
+      );
+    }
+
+    int sbIndex = 0;
+    while (sbIndex < switchboards.length) {
+      final sb = switchboards[sbIndex];
+      // When the checklist ("Lijst") is left out of the PDF, a switchboard's
+      // content is short enough for two to share one page.
+      final sbNext = sbIndex + 1 < switchboards.length
+          ? switchboards[sbIndex + 1]
+          : null;
+      final canPair = !sb.includeChecklistInPdf &&
+          sbNext != null &&
+          !sbNext.includeChecklistInPdf;
+
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -552,77 +728,20 @@ class PdfExportService {
               children: [
                 _logoHeader(headerLogoBytes),
                 pw.SizedBox(height: 4),
-                _sectionTitle('Verdeler: ${sb.name}'),
-                pw.SizedBox(height: 10),
-                if (sb.locationFull.isNotEmpty)
-                  _labelValue('Locatie', sb.locationFull),
-                if (sb.system.isNotEmpty)
-                  _labelValue('Stelsel', sb.system),
-                if (sb.shortCircuitCurrent != null)
-                  _labelValue('Kortsluitstroom',
-                      '${sb.shortCircuitCurrent} A'),
-                if (sb.protection.isNotEmpty)
-                  _labelValue('Voorbeveiliging', sb.protection),
-                if (sb.protectionClass.isNotEmpty)
-                  _labelValue('Beschermingsgraad omhulsel', sb.protectionClass),
-                if (sb.cableCrossSection != null)
-                  _labelValue('Doorsnede', '${sb.cableCrossSection} mm²'),
-                if (sb.cableLength != null)
-                  _labelValue('Lengte', '${sb.cableLength} m'),
-                if (sb.mainSwitchCurrent != null || sb.mainSwitchPoles != null)
-                  _labelValue('Hoofdschakelaar',
-                      '${sb.mainSwitchCurrent ?? '-'} A, ${sb.mainSwitchPoles ?? '-'} polig'),
-                pw.SizedBox(height: 10),
-                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() ||
-                    sb.photo2Path != null && File(sb.photo2Path!).existsSync()) ...[
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      if (sb.photo1Path != null && File(sb.photo1Path!).existsSync())
-                        pw.Expanded(
-                          child: pw.SizedBox(
-                            height: 130,
-                            child: pw.Image(
-                              pw.MemoryImage(File(sb.photo1Path!).readAsBytesSync()),
-                              fit: pw.BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() &&
-                          sb.photo2Path != null && File(sb.photo2Path!).existsSync())
-                        pw.SizedBox(width: 8),
-                      if (sb.photo2Path != null && File(sb.photo2Path!).existsSync())
-                        pw.Expanded(
-                          child: pw.SizedBox(
-                            height: 130,
-                            child: pw.Image(
-                              pw.MemoryImage(File(sb.photo2Path!).readAsBytesSync()),
-                              fit: pw.BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  pw.SizedBox(height: 10),
-                ],
-                if (sb.visualInspection.isNotEmpty) ...[
-                  _subTitle('Visuele inspectie'),
-                  ...sb.visualInspection.entries.map(
-                    (e) => _checklistRow(e.key, e.value),
-                  ),
-                  pw.SizedBox(height: 10),
-                ],
-                if (sb.measurements.isNotEmpty) ...[
-                  _subTitle('Metingen en beproevingen'),
-                  ...sb.measurements.entries.map(
-                    (e) => _checklistRow(e.key, e.value),
-                  ),
+                switchboardBlock(sb),
+                if (canPair) ...[
+                  pw.SizedBox(height: 20),
+                  pw.Divider(),
+                  pw.SizedBox(height: 20),
+                  switchboardBlock(sbNext),
                 ],
               ],
             );
           },
         ),
       );
+
+      sbIndex += canPair ? 2 : 1;
     }
 
     // Solar Installations
@@ -718,14 +837,12 @@ class PdfExportService {
             for (final inv in inverters) {
               final measurements = measurementsByInverter[inv.id!] ?? [];
               widgets.addAll([
+                // Force this inverter's block onto a new page if there isn't
+                // enough room left for its heading plus first content block,
+                // so the heading never gets stranded alone at the page bottom.
+                pw.NewPage(freeSpace: 160),
                 pw.SizedBox(height: 16),
                 pw.Divider(),
-                pw.SizedBox(height: 4),
-                _subTitle(
-                  'Omvormer: ${inv.displayName}'
-                  '${inv.locationFull.isNotEmpty ? "  –  ${inv.locationFull}" : ""}',
-                ),
-                pw.SizedBox(height: 6),
               ]);
 
               // Inverter photo alongside details
@@ -734,53 +851,83 @@ class PdfExportService {
                   ? pw.MemoryImage(File(inv.photoPath!).readAsBytesSync())
                   : null;
 
-              final invDetails = <pw.Widget>[
-                _labelValue('Merk', inv.inverterBrand),
-                _labelValue('Type', inv.inverterType),
-                if (inv.inverterSerial.isNotEmpty)
-                  _labelValue('Serienummer', inv.inverterSerial),
-                if (inv.inverterIp.isNotEmpty)
-                  _labelValue('IP', inv.inverterIp),
-                if (inv.inverterIsolationClass.isNotEmpty)
-                  _labelValue('Isolatieklasse', inv.inverterIsolationClass),
-                if (inv.inverterMaxVdc.isNotEmpty)
-                  _labelValue('Max VDC', inv.inverterMaxVdc),
-                if (inv.inverterMaxIdc.isNotEmpty)
-                  _labelValue('Max IDC', inv.inverterMaxIdc),
-                if (inv.inverterIscPv.isNotEmpty)
-                  _labelValue('Isc pv', inv.inverterIscPv),
-                if (inv.inverterInom.isNotEmpty)
-                  _labelValue('Inom', inv.inverterInom),
-              ];
+              final invDetails = inv.showInverterFields
+                  ? <pw.Widget>[
+                      _labelValue('Merk', inv.inverterBrand),
+                      _labelValue('Type', inv.inverterType),
+                      if (inv.inverterSerial.isNotEmpty)
+                        _labelValue('Serienummer', inv.inverterSerial),
+                      if (inv.inverterIp.isNotEmpty)
+                        _labelValue('IP', inv.inverterIp),
+                      if (inv.inverterIsolationClass.isNotEmpty)
+                        _labelValue(
+                            'Isolatieklasse', inv.inverterIsolationClass),
+                      if (inv.inverterMaxVdc.isNotEmpty)
+                        _labelValue('Max VDC', inv.inverterMaxVdc),
+                      if (inv.inverterMaxIdc.isNotEmpty)
+                        _labelValue('Max IDC', inv.inverterMaxIdc),
+                      if (inv.inverterIscPv.isNotEmpty)
+                        _labelValue('Isc pv', inv.inverterIscPv),
+                      if (inv.inverterInom.isNotEmpty)
+                        _labelValue('Inom', inv.inverterInom),
+                    ]
+                  : <pw.Widget>[];
 
+              final pw.Widget invContent;
               if (invPhoto != null) {
-                widgets.add(
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: invDetails,
-                        ),
-                      ),
-                      pw.SizedBox(width: 12),
-                      pw.SizedBox(
+                invContent = invDetails.isEmpty
+                    ? pw.SizedBox(
                         width: 130,
                         height: 110,
                         child: pw.Image(invPhoto, fit: pw.BoxFit.contain),
-                      ),
-                    ],
-                  ),
-                );
+                      )
+                    : pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: invDetails,
+                            ),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.SizedBox(
+                            width: 130,
+                            height: 110,
+                            child: pw.Image(invPhoto, fit: pw.BoxFit.contain),
+                          ),
+                        ],
+                      );
               } else {
-                widgets.addAll(invDetails);
+                invContent = pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: invDetails,
+                );
               }
 
+              // Keep the "Omvormer" heading on the same page as its first
+              // content block so it never ends up alone at the bottom of a page.
+              widgets.add(
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.SizedBox(height: 4),
+                    _subTitle(
+                      'Omvormer: ${inv.displayName}'
+                      '${inv.locationFull.isNotEmpty ? "  -  ${inv.locationFull}" : ""}',
+                    ),
+                    pw.SizedBox(height: 6),
+                    invContent,
+                  ],
+                ),
+              );
+
               // Paneel
-              if (inv.panelBrand.isNotEmpty || inv.panelType.isNotEmpty ||
-                  inv.panelShortCircuitCurrent.isNotEmpty ||
-                  inv.panelOpenCircuitVoltage.isNotEmpty) {
+              if (inv.showPanelFields &&
+                  (inv.panelBrand.isNotEmpty ||
+                      inv.panelType.isNotEmpty ||
+                      inv.panelShortCircuitCurrent.isNotEmpty ||
+                      inv.panelOpenCircuitVoltage.isNotEmpty)) {
                 widgets.addAll([
                   pw.SizedBox(height: 8),
                   _subTitle('Paneel'),
@@ -947,91 +1094,80 @@ class PdfExportService {
       );
     }
 
-    // Defects — twee gebreken per pagina
-    final defectsWithPhotos = defects
-        .where((d) =>
-            d.id != null &&
-            ((d.photo1Path != null && File(d.photo1Path!).existsSync()) ||
-                (d.photo2Path != null && File(d.photo2Path!).existsSync())))
-        .toList();
+    // Defects — 2 per pagina met foto's, 4 per pagina zonder foto's
+    _addDefectPhotoPages(pdf, defects, annotationsByDefect, headerLogoBytes,
+        tokenByDefect, companyDetails?.herstelWebDomain);
 
-    final herstelDomain = companyDetails?.herstelWebDomain;
-
-    pw.Widget defectBlock(d, List<DefectAnnotation> annotations, String? token) {
-      final photo1Exists = d.photo1Path != null && File(d.photo1Path!).existsSync();
-      final photo2Exists = d.photo2Path != null && File(d.photo2Path!).existsSync();
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(child: _subTitle('${d.classification} — ${d.locationFull}')),
-              if (token != null) pw.SizedBox(width: 8),
-              _herstelQrCode(herstelDomain, token),
-            ],
-          ),
-          if (d.description.isNotEmpty) pw.SizedBox(height: 2),
-          if (d.description.isNotEmpty) _textBlock(d.description),
-          pw.SizedBox(height: 6),
-          pw.Expanded(
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (photo1Exists)
-                  pw.Expanded(
-                    child: _defectPhoto(
-                      d.photo1Path!,
-                      annotations.where((a) => a.photoNumber == 1).toList(),
-                    ),
-                  ),
-                if (photo1Exists && photo2Exists) pw.SizedBox(width: 8),
-                if (photo2Exists)
-                  pw.Expanded(
-                    child: _defectPhoto(
-                      d.photo2Path!,
-                      annotations.where((a) => a.photoNumber == 2).toList(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
+    // Herstelverklaring
+    if (details != null && details.herstelVerklaring.isNotEmpty) {
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          header: (context) => _logoHeader(headerLogoBytes),
+          build: (context) => [
+            _sectionTitle('Herstelverklaring'),
+            pw.SizedBox(height: 10),
+            _textBlock(details.herstelVerklaring),
+          ],
+        ),
       );
     }
 
-    for (int i = 0; i < defectsWithPhotos.length; i += 2) {
-      final d1 = defectsWithPhotos[i];
-      final d2 = i + 1 < defectsWithPhotos.length ? defectsWithPhotos[i + 1] : null;
-      final ann1 = annotationsByDefect[d1.id!] ?? [];
-      final ann2 = d2 != null ? (annotationsByDefect[d2.id!] ?? <DefectAnnotation>[]) : <DefectAnnotation>[];
-
+    // Bijlagen
+    if (bijlagen.isNotEmpty) {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(40),
-          build: (context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _logoHeader(headerLogoBytes),
-                pw.SizedBox(height: 4),
-                if (i == 0) _sectionTitle('Constatering(en)'),
-                if (i == 0) pw.SizedBox(height: 8),
-                pw.Expanded(child: defectBlock(d1, ann1, tokenByDefect[d1.id!])),
-                if (d2 != null) pw.Divider(color: PdfColors.grey400),
-                if (d2 != null) pw.Expanded(child: defectBlock(d2, ann2, tokenByDefect[d2.id!])),
-              ],
-            );
-          },
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _logoHeader(headerLogoBytes),
+              pw.SizedBox(height: 10),
+              _sectionTitle('Bijlagen'),
+              pw.SizedBox(height: 10),
+              ...bijlagen.map((b) => pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 4),
+                    child: pw.Text('•  ${b.naam}'),
+                  )),
+            ],
+          ),
         ),
       );
+
+      for (final b in bijlagen) {
+        final pages = b.id != null ? bijlagePages[b.id!] ?? [] : <Uint8List>[];
+        for (int i = 0; i < pages.length; i++) {
+          pdf.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a4,
+              margin: const pw.EdgeInsets.all(20),
+              build: (context) => pw.Column(
+                children: [
+                  pw.Text(
+                    pages.length > 1
+                        ? '${b.naam} (${i + 1}/${pages.length})'
+                        : b.naam,
+                    style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Expanded(
+                    child: pw.Image(pw.MemoryImage(pages[i]),
+                        fit: pw.BoxFit.contain),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      }
     }
 
     // Save PDF
     final dir = await PhotoService().getExportsDir();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final filePath = p.join(dir, '${inspectionId}_$timestamp.pdf');
+    final filePath = p.join(dir, 'rapport_${inspectionId}_$timestamp.pdf');
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
 
@@ -1135,17 +1271,11 @@ class PdfExportService {
           margin: const pw.EdgeInsets.all(40),
           build: (context) {
             final widgets = <pw.Widget>[
-              _subTitle('${d.classification} — ${d.locationFull}'),
-              pw.SizedBox(height: 4),
-              if (d.description.isNotEmpty) _textBlock(d.description),
-              if (d.toelichting.isNotEmpty) ...[
-                pw.SizedBox(height: 4),
-                _labelValue('Toelichting', d.toelichting),
-              ],
+              _classificationSubTitle(d.classification, d.locationFull),
             ];
 
             if (photo1Exists || photo2Exists) {
-              widgets.add(pw.SizedBox(height: 8));
+              widgets.add(pw.SizedBox(height: 4));
               widgets.add(
                 pw.SizedBox(
                   height: 180,
@@ -1171,6 +1301,15 @@ class PdfExportService {
                   ),
                 ),
               );
+            }
+
+            if (d.description.isNotEmpty) {
+              widgets.add(pw.SizedBox(height: 8));
+              widgets.add(_textBlock(d.description));
+            }
+            if (d.toelichting.isNotEmpty) {
+              widgets.add(pw.SizedBox(height: 4));
+              widgets.add(_labelValue('Toelichting', d.toelichting));
             }
 
             widgets.add(pw.SizedBox(height: 12));
@@ -1295,7 +1434,80 @@ class PdfExportService {
 
     final pdf = pw.Document();
 
-    for (final sb in switchboards) {
+    pw.Widget switchboardBlock(Switchboard sb) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Verdeler: ${sb.name}'),
+          pw.SizedBox(height: 10),
+          _labelValue('Locatie', sb.locationFull),
+          _labelValue('Stelsel', sb.system),
+          _labelValue(
+              'Kortsluitstroom', '${sb.shortCircuitCurrent ?? '-'} A'),
+          _labelValue('Voorbeveiliging', sb.protection),
+          _labelValue('Beschermingsgraad omhulsel', sb.protectionClass),
+          _labelValue('Doorsnede', '${sb.cableCrossSection ?? '-'} mm²'),
+          _labelValue('Lengte', '${sb.cableLength ?? '-'} m'),
+          _labelValue('Hoofdschakelaar',
+              '${sb.mainSwitchCurrent ?? '-'} A, ${sb.mainSwitchPoles ?? '-'} polig'),
+          pw.SizedBox(height: 10),
+          if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() ||
+              sb.photo2Path != null && File(sb.photo2Path!).existsSync()) ...[
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync())
+                  pw.Expanded(
+                    child: pw.SizedBox(
+                      height: 130,
+                      child: pw.Image(
+                        pw.MemoryImage(File(sb.photo1Path!).readAsBytesSync()),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() &&
+                    sb.photo2Path != null && File(sb.photo2Path!).existsSync())
+                  pw.SizedBox(width: 8),
+                if (sb.photo2Path != null && File(sb.photo2Path!).existsSync())
+                  pw.Expanded(
+                    child: pw.SizedBox(
+                      height: 130,
+                      child: pw.Image(
+                        pw.MemoryImage(File(sb.photo2Path!).readAsBytesSync()),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            pw.SizedBox(height: 10),
+          ],
+          if (sb.includeChecklistInPdf) ...[
+            _subTitle('Visuele inspectie'),
+            ...sb.visualInspection.entries
+                .map((e) => _checklistRow(e.key, e.value)),
+            pw.SizedBox(height: 10),
+            _subTitle('Metingen en beproevingen'),
+            ...sb.measurements.entries
+                .map((e) => _checklistRow(e.key, e.value)),
+          ],
+        ],
+      );
+    }
+
+    int sbIndex = 0;
+    while (sbIndex < switchboards.length) {
+      final sb = switchboards[sbIndex];
+      // When the checklist ("Lijst") is left out of the PDF, a switchboard's
+      // content is short enough for two to share one page.
+      final sbNext = sbIndex + 1 < switchboards.length
+          ? switchboards[sbIndex + 1]
+          : null;
+      final canPair = !sb.includeChecklistInPdf &&
+          sbNext != null &&
+          !sbNext.includeChecklistInPdf;
+
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -1304,64 +1516,20 @@ class PdfExportService {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                _sectionTitle('Verdeler: ${sb.name}'),
-                pw.SizedBox(height: 10),
-                _labelValue('Locatie', sb.locationFull),
-                _labelValue('Stelsel', sb.system),
-                _labelValue(
-                    'Kortsluitstroom', '${sb.shortCircuitCurrent ?? '-'} A'),
-                _labelValue('Voorbeveiliging', sb.protection),
-                _labelValue('Beschermingsgraad omhulsel', sb.protectionClass),
-                _labelValue(
-                    'Doorsnede', '${sb.cableCrossSection ?? '-'} mm²'),
-                _labelValue('Lengte', '${sb.cableLength ?? '-'} m'),
-                _labelValue('Hoofdschakelaar',
-                    '${sb.mainSwitchCurrent ?? '-'} A, ${sb.mainSwitchPoles ?? '-'} polig'),
-                pw.SizedBox(height: 10),
-                if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() ||
-                    sb.photo2Path != null && File(sb.photo2Path!).existsSync()) ...[
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      if (sb.photo1Path != null && File(sb.photo1Path!).existsSync())
-                        pw.Expanded(
-                          child: pw.SizedBox(
-                            height: 130,
-                            child: pw.Image(
-                              pw.MemoryImage(File(sb.photo1Path!).readAsBytesSync()),
-                              fit: pw.BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      if (sb.photo1Path != null && File(sb.photo1Path!).existsSync() &&
-                          sb.photo2Path != null && File(sb.photo2Path!).existsSync())
-                        pw.SizedBox(width: 8),
-                      if (sb.photo2Path != null && File(sb.photo2Path!).existsSync())
-                        pw.Expanded(
-                          child: pw.SizedBox(
-                            height: 130,
-                            child: pw.Image(
-                              pw.MemoryImage(File(sb.photo2Path!).readAsBytesSync()),
-                              fit: pw.BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  pw.SizedBox(height: 10),
+                switchboardBlock(sb),
+                if (canPair) ...[
+                  pw.SizedBox(height: 20),
+                  pw.Divider(),
+                  pw.SizedBox(height: 20),
+                  switchboardBlock(sbNext),
                 ],
-                _subTitle('Visuele inspectie'),
-                ...sb.visualInspection.entries
-                    .map((e) => _checklistRow(e.key, e.value)),
-                pw.SizedBox(height: 10),
-                _subTitle('Metingen en beproevingen'),
-                ...sb.measurements.entries
-                    .map((e) => _checklistRow(e.key, e.value)),
               ],
             );
           },
         ),
       );
+
+      sbIndex += canPair ? 2 : 1;
     }
 
     if (defects.isNotEmpty) {
@@ -1425,12 +1593,7 @@ class PdfExportService {
     Map<int, String> tokenByDefect,
     String? herstelDomain,
   ) {
-    final defectsWithPhotos = defects
-        .where((d) =>
-            d.id != null &&
-            ((d.photo1Path != null && File(d.photo1Path!).existsSync()) ||
-                (d.photo2Path != null && File(d.photo2Path!).existsSync())))
-        .toList();
+    final defectsWithPhotos = defects.where((d) => d.id != null).toList();
 
     pw.Widget defectBlock(Defect d, List<DefectAnnotation> annotations, String? token) {
       final photo1Exists =
@@ -1443,48 +1606,59 @@ class PdfExportService {
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Expanded(child: _subTitle('${d.classification} — ${d.locationFull}')),
+              pw.Expanded(child: _classificationSubTitle(d.classification, d.locationFull)),
               if (token != null) pw.SizedBox(width: 8),
               _herstelQrCode(herstelDomain, token),
             ],
           ),
-          if (d.description.isNotEmpty) pw.SizedBox(height: 2),
-          if (d.description.isNotEmpty) _textBlock(d.description),
           pw.SizedBox(height: 6),
-          pw.Expanded(
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (photo1Exists)
-                  pw.Expanded(
-                    child: _defectPhoto(
-                      d.photo1Path!,
-                      annotations.where((a) => a.photoNumber == 1).toList(),
-                    ),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              if (photo1Exists)
+                pw.Expanded(
+                  child: _defectPhoto(
+                    d.photo1Path!,
+                    annotations.where((a) => a.photoNumber == 1).toList(),
                   ),
-                if (photo1Exists && photo2Exists) pw.SizedBox(width: 8),
-                if (photo2Exists)
-                  pw.Expanded(
-                    child: _defectPhoto(
-                      d.photo2Path!,
-                      annotations.where((a) => a.photoNumber == 2).toList(),
-                    ),
+                ),
+              if (photo1Exists && photo2Exists) pw.SizedBox(width: 8),
+              if (photo2Exists)
+                pw.Expanded(
+                  child: _defectPhoto(
+                    d.photo2Path!,
+                    annotations.where((a) => a.photoNumber == 2).toList(),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
+          if (d.description.isNotEmpty) pw.SizedBox(height: 6),
+          if (d.description.isNotEmpty) _textBlock(d.description),
+          if (d.toelichting.isNotEmpty) pw.SizedBox(height: 4),
+          if (d.toelichting.isNotEmpty) _labelValue('Toelichting', d.toelichting),
         ],
       );
     }
 
-    for (int i = 0; i < defectsWithPhotos.length; i += 2) {
-      final d1 = defectsWithPhotos[i];
-      final d2 =
-          i + 1 < defectsWithPhotos.length ? defectsWithPhotos[i + 1] : null;
-      final ann1 = annotationsByDefect[d1.id!] ?? [];
-      final ann2 = d2 != null
-          ? (annotationsByDefect[d2.id!] ?? <DefectAnnotation>[])
-          : <DefectAnnotation>[];
+    bool hasPhoto(Defect d) =>
+        (d.photo1Path != null && File(d.photo1Path!).existsSync()) ||
+        (d.photo2Path != null && File(d.photo2Path!).existsSync());
+
+    int i = 0;
+    while (i < defectsWithPhotos.length) {
+      final isFirstPage = i == 0;
+      final withPhoto = hasPhoto(defectsWithPhotos[i]);
+      // Defects without photos take up much less vertical space, so twice
+      // as many fit on a page as defects with photos.
+      final maxPerPage = withPhoto ? 2 : 4;
+
+      final group = <Defect>[];
+      while (group.length < maxPerPage &&
+          i < defectsWithPhotos.length &&
+          hasPhoto(defectsWithPhotos[i]) == withPhoto) {
+        group.add(defectsWithPhotos[i]);
+        i++;
+      }
 
       pdf.addPage(
         pw.Page(
@@ -1496,11 +1670,18 @@ class PdfExportService {
               children: [
                 _logoHeader(headerLogoBytes),
                 pw.SizedBox(height: 4),
-                if (i == 0) _sectionTitle('Constatering(en)'),
-                if (i == 0) pw.SizedBox(height: 8),
-                pw.Expanded(child: defectBlock(d1, ann1, tokenByDefect[d1.id!])),
-                if (d2 != null) pw.Divider(color: PdfColors.grey400),
-                if (d2 != null) pw.Expanded(child: defectBlock(d2, ann2, tokenByDefect[d2.id!])),
+                if (isFirstPage) _sectionTitle('Constatering(en)'),
+                if (isFirstPage) pw.SizedBox(height: 8),
+                for (int g = 0; g < group.length; g++) ...[
+                  if (g > 0) pw.Divider(color: PdfColors.grey400),
+                  pw.Expanded(
+                    child: defectBlock(
+                      group[g],
+                      annotationsByDefect[group[g].id!] ?? [],
+                      tokenByDefect[group[g].id!],
+                    ),
+                  ),
+                ],
               ],
             );
           },
@@ -1672,20 +1853,24 @@ class PdfExportService {
           _labelValue('Uitgevoerd volgens', 'NEN 1010:2020 en NEN 3140:2018'),
           _labelValue('Getoetst aan', 'NEN 1010:2020'),
           pw.SizedBox(height: 10),
+          pw.NewPage(),
           _subTitle('Methode'),
           _labelValue('Visuele inspectie', ''),
-          _textBlock('1)  De elektrische installatie visueel geïnspecteerd op:\n'
-              '    - Aanraakveiligheid\n'
-              '    - Overeenstemming met de omgeving\n'
-              '    - Staat van onderhoud'),
+          _formattedTextBlock(
+              '1) De elektrische installatie visueel geïnspecteerd op:\n'
+              '- Aanraakveiligheid\n'
+              '- Overeenstemming met de omgeving\n'
+              '- Staat van onderhoud'),
           pw.SizedBox(height: 6),
           _labelValue('Metingen en beproevingen', ''),
-          _textBlock('1)  Ononderbroken zijn van de beschermingsleiding\n'
-              '2)  Isolatieweerstand\n'
-              '3)  Aardlekbeveiliging'),
+          _formattedTextBlock('1) Ononderbroken zijn van de beschermingsleiding\n'
+              '2) Isolatieweerstand\n'
+              '3) Aardlekbeveiliging'),
           pw.SizedBox(height: 6),
-          _labelValue('Afkeuringscriteria', ''),
-          _textBlock('Bij een gebrek of afwijking van een standaard met directe '
+          pw.NewPage(),
+          _labelValue('Classificatie van constateringen', ''),
+          _formattedTextBlock(
+              'Bij een gebrek of afwijking van een standaard met directe '
               'veiligheidsconsequenties wordt de installatie afgekeurd.'),
         ],
       ),
@@ -1827,7 +2012,8 @@ class PdfExportService {
             'dienen te worden hersteld. Na herstel is de installatie goedgekeurd.',
           ),
           pw.SizedBox(height: 6),
-          _labelValue('Volgende inspectie', '01-03-2031'),
+          _subTitle('Volgende inspectie'),
+          _textBlock('01-03-2031'),
           pw.SizedBox(height: 16),
           _subTitle('Ondertekening'),
           pw.SizedBox(height: 8),
@@ -1835,11 +2021,11 @@ class PdfExportService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Expanded(child: _signatoryBlock(
-                'Ondertekenaar 1', 'K. Bakker', 'Inspecteur', '15-02-2026', '',
+                '', 'K. Bakker', 'Inspecteur', '15-02-2026', '',
               )),
               pw.SizedBox(width: 20),
               pw.Expanded(child: _signatoryBlock(
-                'Ondertekenaar 2', 'M. Smit', 'Hoofd Inspectie', '15-02-2026', '',
+                '', 'M. Smit', 'Hoofd Inspectie', '15-02-2026', '',
               )),
             ],
           ),
@@ -1904,22 +2090,8 @@ class PdfExportService {
     final counts = {for (final c in cats) c: classifications.where((x) => x == c).length};
     final total = counts.values.fold(0, (s, v) => s + v);
 
-    const bgColors = {
-      'Rd': PdfColor.fromInt(0xFFEF5350),
-      'Or': PdfColor.fromInt(0xFFFF9800),
-      'Ge': PdfColor.fromInt(0xFFFFEE58),
-      'Bl': PdfColor.fromInt(0xFF42A5F5),
-      'Pa': PdfColor.fromInt(0xFFAB47BC),
-      'Gr': PdfColor.fromInt(0xFF9E9E9E),
-    };
-    const fgColors = {
-      'Rd': PdfColors.white,
-      'Or': PdfColors.white,
-      'Ge': PdfColor.fromInt(0xFF5D4037),
-      'Bl': PdfColors.white,
-      'Pa': PdfColors.white,
-      'Gr': PdfColors.white,
-    };
+    final bgColors = _classificationBgColors;
+    final fgColors = _classificationFgColors;
 
     pw.Widget headerCell(String label) => pw.Container(
           color: bgColors[label],
@@ -2087,6 +2259,91 @@ class PdfExportService {
     );
   }
 
+  static final RegExp _listMarkerRegex =
+      RegExp(r'^([0-9]+\.[0-9]+\)?|[0-9]+\)|[a-zA-Z]\)|[-•])\s*');
+  static final RegExp _subListMarkerRegex = RegExp(r'^[0-9]+\.[0-9]+');
+
+  /// Renders free-form text where lines may start with a "1)", "a)", "-" or
+  /// "•" marker. Wrapped/continuation lines (including ones the source text
+  /// manually broke with a leading tab) are folded back into the item's text
+  /// so the item hangs indented under its marker instead of restarting at
+  /// the page margin. A "2.1)"-style marker is treated as a sub-item of the
+  /// preceding "2)" item and indented one level deeper.
+  pw.Widget _formattedTextBlock(String text) {
+    final widgets = <pw.Widget>[];
+    String? currentMarker;
+    StringBuffer? currentText;
+
+    void flush() {
+      if (currentMarker != null) {
+        final isSubItem = _subListMarkerRegex.hasMatch(currentMarker!);
+        widgets.add(
+          pw.Padding(
+            padding: pw.EdgeInsets.only(
+                bottom: 3, left: isSubItem ? 20 : 0),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(
+                  width: isSubItem ? 32 : 26,
+                  child: pw.Text(currentMarker!,
+                      style: const pw.TextStyle(fontSize: 10)),
+                ),
+                pw.Expanded(
+                  child: pw.Text(currentText.toString().trim(),
+                      style: const pw.TextStyle(fontSize: 10)),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else if (currentText != null) {
+        final content = currentText.toString().trim();
+        if (content.isNotEmpty) {
+          widgets.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 3),
+              child:
+                  pw.Text(content, style: const pw.TextStyle(fontSize: 10)),
+            ),
+          );
+        } else {
+          widgets.add(pw.SizedBox(height: 6));
+        }
+      }
+      currentMarker = null;
+      currentText = null;
+    }
+
+    for (final rawLine in text.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) {
+        flush();
+        continue;
+      }
+      final match = _listMarkerRegex.firstMatch(line);
+      if (match != null) {
+        flush();
+        currentMarker = match.group(1);
+        currentText = StringBuffer(line.substring(match.end).trim());
+      } else if (currentText != null) {
+        currentText!.write(' ');
+        currentText!.write(line);
+      } else {
+        currentText = StringBuffer(line);
+      }
+    }
+    flush();
+
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: widgets,
+      ),
+    );
+  }
+
   bool _hasValue(String? s) => s != null && s.isNotEmpty;
 
   pw.Widget _labelMultiValue(String label, List<String> values) {
@@ -2106,7 +2363,7 @@ class PdfExportService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: values
-                  .map((v) => pw.Text('• ${v.trim()}',
+                  .map((v) => pw.Text('- ${v.trim()}',
                       style: const pw.TextStyle(fontSize: 10)))
                   .toList(),
             ),
@@ -2392,11 +2649,7 @@ class PdfExportService {
         ? File(companyDetails.logoPath!).readAsBytesSync()
         : null;
 
-    final rapportnummer = titlePage?.projectNumber.isNotEmpty == true
-        ? titlePage!.projectNumber
-        : (titlePage?.identificationCode.isNotEmpty == true
-            ? titlePage!.identificationCode
-            : '$inspectionId');
+    final projectWerkbonnummer = titlePage?.projectNumber ?? '';
 
     final fmt = DateFormat('dd/MM/yyyy');
     final printdatum = fmt.format(DateTime.now());
@@ -2453,7 +2706,7 @@ class PdfExportService {
                     ),
                   ),
                   pw.SizedBox(height: 6),
-                  lv('Rapportnummer', rapportnummer),
+                  lv('Project-/werkbonnummer', projectWerkbonnummer),
                   lv('Printdatum', printdatum),
                   lv('Pagina', pagina),
                 ],
@@ -2516,6 +2769,7 @@ class PdfExportService {
                           generalData?.clientContact ?? ''),
                       lv('Telefoonnummer',
                           generalData?.clientPhone ?? ''),
+                      lv('Mail', generalData?.clientEmail ?? ''),
                       lv('Adres', generalData?.clientAddress ?? ''),
                       lv('Plaats',
                           generalData?.clientPostalCity ?? ''),
@@ -2531,8 +2785,8 @@ class PdfExportService {
                               installatieverantwoordelijkeTelefoon),
                       ],
 
-                      // Locatie
-                      secTitle('Locatie'),
+                      // Inspectieadres
+                      secTitle('Inspectieadres'),
                       lv('Adres', locStreet),
                       lv('Plaats',
                           generalData?.inspectionAddressPostalCity ??
@@ -2541,6 +2795,7 @@ class PdfExportService {
                           generalData?.inspectionAddressContact ?? ''),
                       lv('Telefoonnummer',
                           generalData?.inspectionAddressPhone ?? ''),
+                      lv('Mail', generalData?.inspectionAddressEmail ?? ''),
 
                       // Inspectie uitgevoerd door
                       secTitle('Inspectie uitgevoerd door'),
@@ -2700,6 +2955,20 @@ class PdfExportService {
                             ],
                           ),
                         ),
+
+                      if (photo1Exists || photo2Exists)
+                        pw.SizedBox(height: 8),
+
+                      // Omschrijving constatering / toelichting
+                      if (defect.description.isNotEmpty)
+                        pw.Text(
+                          defect.description,
+                          style: const pw.TextStyle(fontSize: labelFs),
+                        ),
+                      if (defect.toelichting.isNotEmpty) ...[
+                        pw.SizedBox(height: 4),
+                        lv('Toelichting', defect.toelichting),
+                      ],
 
                       pw.SizedBox(height: 14),
 
@@ -2866,15 +3135,41 @@ class PdfExportService {
     String datum,
     String handtekeningBase64,
   ) {
+    pw.Widget signatoryRow(String label, String value) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(
+              width: 55,
+              child: pw.Text(
+                '$label:',
+                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+            pw.Expanded(
+              child: pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+            ),
+          ],
+        ),
+      );
+    }
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(title,
-            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 4),
-        if (naam.isNotEmpty) _labelValue('Naam', naam),
-        if (functie.isNotEmpty) _labelValue('Functie', functie),
-        if (datum.isNotEmpty) _labelValue('Datum', datum),
+        if (title.isNotEmpty) ...[
+          pw.Text(title,
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+        ],
+        if (naam.isNotEmpty) signatoryRow('Naam', naam),
+        if (functie.isNotEmpty) signatoryRow('Functie', functie),
+        if (datum.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          signatoryRow('Datum', datum),
+        ],
         pw.SizedBox(height: 6),
         if (handtekeningBase64.isNotEmpty)
           pw.Container(

@@ -91,6 +91,10 @@ class _MeetgegevensPageState extends State<MeetgegevensPage> {
     const typeGroup = XTypeGroup(
       label: 'Excel meetgegevens',
       extensions: ['xlsx', 'xls'],
+      uniformTypeIdentifiers: [
+        'org.openxmlformats.spreadsheetml.sheet',
+        'com.microsoft.excel.xls',
+      ],
     );
     final file = await openFile(acceptedTypeGroups: [typeGroup]);
     if (file == null) return;

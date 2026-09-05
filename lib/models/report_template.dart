@@ -22,6 +22,7 @@ class ReportTemplate {
   final String subtitel;
   final String inleiding;
   final String tekstRapportVerklaring;
+  final String herstelVerklaring;
   final String visueleInspectieTitel;
   final String visueleInspectie;
   final String visueleInspectieToelichting;
@@ -49,6 +50,7 @@ class ReportTemplate {
     this.subtitel = '',
     this.inleiding = '',
     this.tekstRapportVerklaring = '',
+    this.herstelVerklaring = '',
     this.visueleInspectieTitel = '',
     this.visueleInspectie = '',
     this.visueleInspectieToelichting = '',
@@ -78,6 +80,7 @@ class ReportTemplate {
       'subtitel': subtitel,
       'inleiding': inleiding,
       'tekst_rapport_verklaring': tekstRapportVerklaring,
+      'herstel_verklaring': herstelVerklaring,
       'visuele_inspectie_titel': visueleInspectieTitel,
       'visuele_inspectie': visueleInspectie,
       'visuele_inspectie_toelichting': visueleInspectieToelichting,
@@ -108,6 +111,7 @@ class ReportTemplate {
       subtitel: map['subtitel'] as String? ?? '',
       inleiding: map['inleiding'] as String? ?? '',
       tekstRapportVerklaring: map['tekst_rapport_verklaring'] as String? ?? '',
+      herstelVerklaring: map['herstel_verklaring'] as String? ?? '',
       visueleInspectieTitel: map['visuele_inspectie_titel'] as String? ?? '',
       visueleInspectie: map['visuele_inspectie'] as String? ?? '',
       visueleInspectieToelichting:
@@ -145,6 +149,7 @@ class ReportTemplate {
     String? subtitel,
     String? inleiding,
     String? tekstRapportVerklaring,
+    String? herstelVerklaring,
     String? visueleInspectieTitel,
     String? visueleInspectie,
     String? visueleInspectieToelichting,
@@ -173,6 +178,7 @@ class ReportTemplate {
       inleiding: inleiding ?? this.inleiding,
       tekstRapportVerklaring:
           tekstRapportVerklaring ?? this.tekstRapportVerklaring,
+      herstelVerklaring: herstelVerklaring ?? this.herstelVerklaring,
       visueleInspectieTitel:
           visueleInspectieTitel ?? this.visueleInspectieTitel,
       visueleInspectie: visueleInspectie ?? this.visueleInspectie,

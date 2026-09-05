@@ -37,6 +37,7 @@ import '../models/report_template.dart';
 import '../models/final_assessment.dart';
 import '../models/rapport_constatering.dart';
 import '../models/steekproef_item.dart';
+import '../models/bijlage.dart';
 import '../models/tekening.dart';
 import '../models/tekening_pin.dart';
 import '../models/herstel.dart';
@@ -207,6 +208,9 @@ class DatabaseService {
         protection TEXT DEFAULT '',
         cable TEXT DEFAULT '',
         photo_path TEXT,
+        type_plaatje_path TEXT,
+        show_inverter_fields INTEGER NOT NULL DEFAULT 1,
+        show_panel_fields INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY (solar_installation_id) REFERENCES solar_installations (id) ON DELETE CASCADE
       )
     ''');
@@ -216,6 +220,18 @@ class DatabaseService {
       if (!invExisting.contains(col)) {
         await db.execute(
           "ALTER TABLE solar_inverters ADD COLUMN $col TEXT NOT NULL DEFAULT ''",
+        );
+      }
+    }
+    if (!invExisting.contains('type_plaatje_path')) {
+      await db.execute(
+        "ALTER TABLE solar_inverters ADD COLUMN type_plaatje_path TEXT",
+      );
+    }
+    for (final col in ['show_inverter_fields', 'show_panel_fields']) {
+      if (!invExisting.contains(col)) {
+        await db.execute(
+          "ALTER TABLE solar_inverters ADD COLUMN $col INTEGER NOT NULL DEFAULT 1",
         );
       }
     }
@@ -280,6 +296,7 @@ class DatabaseService {
       'methode_aanvullend_onderzoek': "TEXT DEFAULT ''",
       'methode_criteria': "TEXT DEFAULT ''",
       'inleiding_toelichting': "TEXT DEFAULT ''",
+      'herstel_verklaring': "TEXT DEFAULT ''",
       'aardingsstelsel': "TEXT DEFAULT ''",
       'netaansluiting': "TEXT DEFAULT ''",
       'hoofdaansluiting': "TEXT DEFAULT ''",
@@ -287,6 +304,7 @@ class DatabaseService {
       'bijzondere_installatie': "TEXT DEFAULT ''",
       'bouwjaar': "TEXT DEFAULT ''",
       'oppervlakte': "TEXT DEFAULT ''",
+      'gebouwhoogte': "TEXT DEFAULT ''",
     };
     for (final entry in toAdd.entries) {
       if (!existing.contains(entry.key)) {
@@ -325,7 +343,8 @@ class DatabaseService {
         inleiding_toelichting TEXT DEFAULT '',
         volgend_inspectie TEXT DEFAULT '',
         eindbeoordeling_oke TEXT DEFAULT '',
-        melding_gevaarlijke_situatie TEXT DEFAULT ''
+        melding_gevaarlijke_situatie TEXT DEFAULT '',
+        herstel_verklaring TEXT DEFAULT ''
       )
     ''');
     // Migrate existing tables that predate these columns
@@ -338,6 +357,7 @@ class DatabaseService {
       'volgend_inspectie': "TEXT DEFAULT ''",
       'eindbeoordeling_oke': "TEXT DEFAULT ''",
       'melding_gevaarlijke_situatie': "TEXT DEFAULT ''",
+      'herstel_verklaring': "TEXT DEFAULT ''",
     };
     for (final entry in toAdd.entries) {
       if (!existing.contains(entry.key)) {
@@ -487,7 +507,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 25,
+      version: 28,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -553,6 +573,7 @@ class DatabaseService {
         date_color_white INTEGER NOT NULL DEFAULT 0,
         code_color_white INTEGER NOT NULL DEFAULT 0,
         project_color_white INTEGER NOT NULL DEFAULT 0,
+        layout_locked INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
       )
     ''');
@@ -604,6 +625,7 @@ class DatabaseService {
         client_postal_city TEXT DEFAULT '',
         client_contact TEXT DEFAULT '',
         client_phone TEXT DEFAULT '',
+        client_email TEXT DEFAULT '',
         installation_responsible_name TEXT DEFAULT '',
         installation_responsible_phone TEXT DEFAULT '',
         inspection_address_name TEXT DEFAULT '',
@@ -611,6 +633,7 @@ class DatabaseService {
         inspection_address_postal_city TEXT DEFAULT '',
         inspection_address_contact TEXT DEFAULT '',
         inspection_address_phone TEXT DEFAULT '',
+        inspection_address_email TEXT DEFAULT '',
         inspector_company TEXT DEFAULT '',
         inspector_address TEXT DEFAULT '',
         inspector_postal_city TEXT DEFAULT '',
@@ -663,6 +686,7 @@ class DatabaseService {
         visual_inspection_json TEXT,
         measurements_json TEXT,
         opmerking TEXT DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
       )
     ''');
@@ -699,6 +723,7 @@ class DatabaseService {
         scope10 INTEGER NOT NULL DEFAULT 0,
         scope12 INTEGER NOT NULL DEFAULT 0,
         scope_eos INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
       )
     ''');
@@ -819,6 +844,16 @@ class DatabaseService {
         label TEXT DEFAULT '',
         volgnummer INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY (tekening_id) REFERENCES tekeningen (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE bijlagen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        naam TEXT DEFAULT '',
+        bestand_pad TEXT DEFAULT '',
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
       )
     ''');
 
@@ -1026,12 +1061,19 @@ class DatabaseService {
       'toelichting',
       'installation_component',
       'naam_code',
+      'melding_naam_klant',
+      'melding_handtekening_klant',
     ]) {
       if (!cols.any((c) => c['name'] == col)) {
         await db.execute(
           "ALTER TABLE defects ADD COLUMN $col TEXT NOT NULL DEFAULT ''",
         );
       }
+    }
+    if (!cols.any((c) => c['name'] == 'sort_order')) {
+      await db.execute(
+        "ALTER TABLE defects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+      );
     }
     // Ensure title_page_defaults table exists (for databases created before this feature).
     await db.execute('''
@@ -1090,6 +1132,7 @@ class DatabaseService {
         'address_name_y': 'REAL NOT NULL DEFAULT 0.72',
         'address_name_w': 'REAL NOT NULL DEFAULT 0.70',
         'address_name_h': 'REAL NOT NULL DEFAULT 0.065',
+        'layout_locked': 'INTEGER NOT NULL DEFAULT 1',
       };
       for (final entry in titleToAdd.entries) {
         if (!titleExisting.contains(entry.key)) {
@@ -1209,6 +1252,16 @@ class DatabaseService {
         FOREIGN KEY (tekening_id) REFERENCES tekeningen (id) ON DELETE CASCADE
       )
     ''');
+    // Ensure bijlagen table exists for databases created before this feature.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bijlagen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        naam TEXT DEFAULT '',
+        bestand_pad TEXT DEFAULT '',
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+      )
+    ''');
     // Ensure herstel table exists.
     await db.execute('''
       CREATE TABLE IF NOT EXISTS herstel (
@@ -1301,6 +1354,7 @@ class DatabaseService {
       'methode_aanvullend_onderzoek': "TEXT DEFAULT ''",
       'methode_criteria': "TEXT DEFAULT ''",
       'inleiding_toelichting': "TEXT DEFAULT ''",
+      'herstel_verklaring': "TEXT DEFAULT ''",
       'aardingsstelsel': "TEXT DEFAULT ''",
       'netaansluiting': "TEXT DEFAULT ''",
       'hoofdaansluiting': "TEXT DEFAULT ''",
@@ -1308,6 +1362,7 @@ class DatabaseService {
       'bijzondere_installatie': "TEXT DEFAULT ''",
       'bouwjaar': "TEXT DEFAULT ''",
       'oppervlakte': "TEXT DEFAULT ''",
+      'gebouwhoogte': "TEXT DEFAULT ''",
     };
     for (final entry in detailToAdd.entries) {
       if (!detailExisting.contains(entry.key)) {
@@ -1329,6 +1384,8 @@ class DatabaseService {
         'hoofdschakelaars_json': "TEXT DEFAULT ''",
         'beschermingsklasse': "TEXT NOT NULL DEFAULT ''",
         'opmerking': "TEXT DEFAULT ''",
+        'include_checklist_in_pdf': "INTEGER NOT NULL DEFAULT 1",
+        'sort_order': "INTEGER NOT NULL DEFAULT 0",
       };
       for (final entry in sbToAdd.entries) {
         if (!sbExisting.contains(entry.key)) {
@@ -1686,6 +1743,43 @@ class DatabaseService {
       if (!cols.any((c) => c['name'] == 'elementcode_id')) {
         await db.execute(
           "ALTER TABLE nen_gebreken ADD COLUMN elementcode_id INTEGER",
+        );
+      }
+    }
+    if (oldVersion < 26) {
+      final cols = await db.rawQuery("PRAGMA table_info(general_data)");
+      final colNames = cols.map((c) => c['name'] as String).toSet();
+      if (!colNames.contains('client_email')) {
+        await db.execute(
+          "ALTER TABLE general_data ADD COLUMN client_email TEXT DEFAULT ''",
+        );
+      }
+      if (!colNames.contains('inspection_address_email')) {
+        await db.execute(
+          "ALTER TABLE general_data ADD COLUMN inspection_address_email TEXT DEFAULT ''",
+        );
+      }
+    }
+    if (oldVersion < 27) {
+      final cols = await db.rawQuery("PRAGMA table_info(defects)");
+      final colNames = cols.map((c) => c['name'] as String).toSet();
+      if (!colNames.contains('melding_naam_klant')) {
+        await db.execute(
+          "ALTER TABLE defects ADD COLUMN melding_naam_klant TEXT NOT NULL DEFAULT ''",
+        );
+      }
+      if (!colNames.contains('melding_handtekening_klant')) {
+        await db.execute(
+          "ALTER TABLE defects ADD COLUMN melding_handtekening_klant TEXT NOT NULL DEFAULT ''",
+        );
+      }
+    }
+    if (oldVersion < 28) {
+      final cols = await db.rawQuery("PRAGMA table_info(switchboards)");
+      final colNames = cols.map((c) => c['name'] as String).toSet();
+      if (!colNames.contains('include_checklist_in_pdf')) {
+        await db.execute(
+          "ALTER TABLE switchboards ADD COLUMN include_checklist_in_pdf INTEGER NOT NULL DEFAULT 1",
         );
       }
     }
@@ -2203,6 +2297,18 @@ class DatabaseService {
         });
       }
 
+      final bijlagen = await txn.query(
+        'bijlagen',
+        where: 'inspection_id = ?',
+        whereArgs: [id],
+      );
+      for (final bijlage in bijlagen) {
+        final bijlageCopy = Map<String, dynamic>.from(bijlage)
+          ..remove('id')
+          ..['inspection_id'] = newId;
+        await txn.insert('bijlagen', bijlageCopy);
+      }
+
       final measurementGroups = await txn.query(
         'measurement_groups',
         where: 'inspection_id = ?',
@@ -2429,8 +2535,23 @@ class DatabaseService {
       'switchboards',
       where: 'inspection_id = ?',
       whereArgs: [inspectionId],
+      orderBy: 'sort_order ASC, id ASC',
     );
     return maps.map((m) => Switchboard.fromMap(m)).toList();
+  }
+
+  Future<void> updateSwitchboardOrder(List<int> orderedIds) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < orderedIds.length; i++) {
+      batch.update(
+        'switchboards',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [orderedIds[i]],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<Switchboard?> getSwitchboard(int id) async {
@@ -2675,8 +2796,23 @@ class DatabaseService {
       'defects',
       where: 'inspection_id = ?',
       whereArgs: [inspectionId],
+      orderBy: 'sort_order ASC, id ASC',
     );
     return maps.map((m) => Defect.fromMap(m)).toList();
+  }
+
+  Future<void> updateDefectOrder(List<int> orderedIds) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < orderedIds.length; i++) {
+      batch.update(
+        'defects',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [orderedIds[i]],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<Defect?> getDefect(int id) async {
@@ -2750,6 +2886,46 @@ class DatabaseService {
     await db.delete('standards', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<void> deleteAllStandards(String category) async {
+    final db = await database;
+    await db.delete('standards', where: 'category = ?', whereArgs: [category]);
+  }
+
+  Future<int> getStandardsCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) AS c FROM standards');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<void> deleteAllStandardsEverywhere() async {
+    final db = await database;
+    await db.delete('standards');
+  }
+
+  /// Voegt een standaardwaarde toe, of werkt de weergavenaam bij als er al
+  /// een waarde met dezelfde categorie en waarde bestaat. Retourneert true
+  /// als er een nieuwe rij is toegevoegd, false als een bestaande is bijgewerkt.
+  Future<bool> upsertStandard(Standard standard) async {
+    final db = await database;
+    final existing = await db.query(
+      'standards',
+      where: 'category = ? AND value = ?',
+      whereArgs: [standard.category, standard.value],
+    );
+    if (existing.isNotEmpty) {
+      final id = existing.first['id'] as int;
+      await db.update(
+        'standards',
+        {'display_name': standard.displayName},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return false;
+    }
+    await db.insert('standards', standard.toMap());
+    return true;
+  }
+
   // ── Defect Annotations ──
 
   Future<int> insertAnnotation(DefectAnnotation annotation) async {
@@ -2797,6 +2973,23 @@ class DatabaseService {
       annotation.toMap(),
       where: 'id = ?',
       whereArgs: [annotation.id],
+    );
+  }
+
+  /// Updates the stored classification color of every annotation belonging
+  /// to [defectId], so existing annotations follow a later classification
+  /// change instead of staying pinned to the color they were drawn with.
+  Future<void> updateAnnotationsColorForDefect(
+    int defectId,
+    String color,
+  ) async {
+    await _ensureAnnotationSchema();
+    final db = await database;
+    await db.update(
+      'defect_annotations',
+      {'color': color},
+      where: 'defect_id = ?',
+      whereArgs: [defectId],
     );
   }
 
@@ -3406,6 +3599,7 @@ class DatabaseService {
         subtitel: template.subtitel,
         inleiding: template.inleiding,
         tekstRapportVerklaring: template.tekstRapportVerklaring,
+        herstelVerklaring: template.herstelVerklaring,
         visueleInspectieTitel: template.visueleInspectieTitel,
         visueleInspectie: template.visueleInspectie,
         visueleInspectieToelichting: template.visueleInspectieToelichting,
@@ -3424,6 +3618,7 @@ class DatabaseService {
         inleidingToelichting: template.inleidingToelichting,
         volgendInspectie: template.volgendInspectie,
         eindbeoordelingOKE: template.eindbeoordelingOKE,
+        meldingGevaarlijkeSituatie: template.meldingGevaarlijkeSituatie,
       );
       await db.update(
         'report_templates',
@@ -3442,6 +3637,12 @@ class DatabaseService {
     await _ensureReportTemplatesSchema();
     final db = await database;
     await db.delete('report_templates', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteAllReportTemplates() async {
+    await _ensureReportTemplatesSchema();
+    final db = await database;
+    await db.delete('report_templates');
   }
 
   // ── Rapport Constateringen ──────────────────────────────────────────────────
@@ -3498,6 +3699,12 @@ class DatabaseService {
     await _ensureRapportConstateringenSchema();
     final db = await database;
     await db.delete('rapport_constateringen', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteAllRapportConstateringen() async {
+    await _ensureRapportConstateringenSchema();
+    final db = await database;
+    await db.delete('rapport_constateringen');
   }
 
   /// Upsert by groep + beschrijving (natural key).
@@ -3634,6 +3841,39 @@ class DatabaseService {
   Future<void> deleteTekening(int id) async {
     final db = await database;
     await db.delete('tekeningen', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Bijlagen ────────────────────────────────────────────────────────────────
+
+  Future<List<Bijlage>> getBijlagen(int inspectionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'bijlagen',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+      orderBy: 'id ASC',
+    );
+    return maps.map(Bijlage.fromMap).toList();
+  }
+
+  Future<int> insertBijlage(Bijlage bijlage) async {
+    final db = await database;
+    return await db.insert('bijlagen', bijlage.toMap());
+  }
+
+  Future<void> updateBijlage(Bijlage bijlage) async {
+    final db = await database;
+    await db.update(
+      'bijlagen',
+      bijlage.toMap(),
+      where: 'id = ?',
+      whereArgs: [bijlage.id],
+    );
+  }
+
+  Future<void> deleteBijlage(int id) async {
+    final db = await database;
+    await db.delete('bijlagen', where: 'id = ?', whereArgs: [id]);
   }
 
   // ── Tekening pins ───────────────────────────────────────────────────────────

@@ -47,6 +47,10 @@ class SolarInverter {
   final String cable;
   // Photo
   final String? photoPath;
+  final String? typePlaatjePath;
+  // Section visibility (also controls whether the section is shown in the PDF)
+  final bool showInverterFields;
+  final bool showPanelFields;
 
   SolarInverter({
     this.id,
@@ -71,6 +75,9 @@ class SolarInverter {
     this.protection = '',
     this.cable = '',
     this.photoPath,
+    this.typePlaatjePath,
+    this.showInverterFields = true,
+    this.showPanelFields = true,
   });
 
   Map<String, dynamic> toMap() {
@@ -97,6 +104,9 @@ class SolarInverter {
       'protection': protection,
       'cable': cable,
       'photo_path': photoPath,
+      'type_plaatje_path': typePlaatjePath,
+      'show_inverter_fields': showInverterFields ? 1 : 0,
+      'show_panel_fields': showPanelFields ? 1 : 0,
     };
   }
 
@@ -126,6 +136,9 @@ class SolarInverter {
       protection: map['protection'] as String? ?? '',
       cable: map['cable'] as String? ?? '',
       photoPath: map['photo_path'] as String?,
+      typePlaatjePath: map['type_plaatje_path'] as String?,
+      showInverterFields: (map['show_inverter_fields'] as int?) != 0,
+      showPanelFields: (map['show_panel_fields'] as int?) != 0,
     );
   }
 
@@ -152,6 +165,9 @@ class SolarInverter {
     String? protection,
     String? cable,
     String? photoPath,
+    String? typePlaatjePath,
+    bool? showInverterFields,
+    bool? showPanelFields,
   }) {
     return SolarInverter(
       id: id ?? this.id,
@@ -179,6 +195,9 @@ class SolarInverter {
       protection: protection ?? this.protection,
       cable: cable ?? this.cable,
       photoPath: photoPath ?? this.photoPath,
+      typePlaatjePath: typePlaatjePath ?? this.typePlaatjePath,
+      showInverterFields: showInverterFields ?? this.showInverterFields,
+      showPanelFields: showPanelFields ?? this.showPanelFields,
     );
   }
 

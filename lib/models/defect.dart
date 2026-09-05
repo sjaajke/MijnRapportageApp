@@ -33,6 +33,9 @@ class Defect {
   final bool scope12;
   final bool scopeEos;
   final String toelichting;
+  final String meldingNaamKlant;
+  final String meldingHandtekeningKlant;
+  final int sortOrder;
 
   static const List<String> classifications = ['Rd', 'Or', 'Ge', 'Bl', 'Pa', 'Gr'];
 
@@ -58,6 +61,9 @@ class Defect {
     this.scope12 = false,
     this.scopeEos = false,
     this.toelichting = '',
+    this.meldingNaamKlant = '',
+    this.meldingHandtekeningKlant = '',
+    this.sortOrder = 0,
   });
 
   Map<String, dynamic> toMap() {
@@ -78,6 +84,9 @@ class Defect {
       'scope12': scope12 ? 1 : 0,
       'scope_eos': scopeEos ? 1 : 0,
       'toelichting': toelichting,
+      'melding_naam_klant': meldingNaamKlant,
+      'melding_handtekening_klant': meldingHandtekeningKlant,
+      'sort_order': sortOrder,
     };
   }
 
@@ -100,6 +109,10 @@ class Defect {
       scope12: (map['scope12'] as int?) == 1,
       scopeEos: (map['scope_eos'] as int?) == 1,
       toelichting: map['toelichting'] as String? ?? '',
+      meldingNaamKlant: map['melding_naam_klant'] as String? ?? '',
+      meldingHandtekeningKlant:
+          map['melding_handtekening_klant'] as String? ?? '',
+      sortOrder: map['sort_order'] as int? ?? 0,
     );
   }
 
@@ -121,6 +134,9 @@ class Defect {
     bool? scope12,
     bool? scopeEos,
     String? toelichting,
+    String? meldingNaamKlant,
+    String? meldingHandtekeningKlant,
+    int? sortOrder,
   }) {
     return Defect(
       id: id ?? this.id,
@@ -140,6 +156,10 @@ class Defect {
       scope12: scope12 ?? this.scope12,
       scopeEos: scopeEos ?? this.scopeEos,
       toelichting: toelichting ?? this.toelichting,
+      meldingNaamKlant: meldingNaamKlant ?? this.meldingNaamKlant,
+      meldingHandtekeningKlant:
+          meldingHandtekeningKlant ?? this.meldingHandtekeningKlant,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }

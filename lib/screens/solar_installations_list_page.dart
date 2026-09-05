@@ -27,6 +27,12 @@ import 'solar_installation_detail_page.dart';
 import 'solar_inverter_detail_page.dart';
 import 'defects_list_page.dart';
 
+/// Below this content width the page shows the installation list full-screen
+/// and pushes the detail as a separate route; at or above it, a split view
+/// shows the list on the left and the selected installation's detail on the
+/// right.
+const _splitBreakpoint = 800.0;
+
 class SolarInstallationsListPage extends StatefulWidget {
   final int inspectionId;
 
@@ -43,6 +49,8 @@ class _SolarInstallationsListPageState
   List<SolarInstallation> _installations = [];
   Map<int, List<SolarInverter>> _invertersByInstallation = {};
   bool _loading = true;
+  int? _selectedInstallationId;
+  int? _selectedInverterId;
 
   @override
   void initState() {
@@ -62,14 +70,33 @@ class _SolarInstallationsListPageState
       _installations = items;
       _invertersByInstallation = invertersMap;
       _loading = false;
+      if (_selectedInstallationId != null &&
+          !_installations.any((i) => i.id == _selectedInstallationId)) {
+        _selectedInstallationId = null;
+      }
+      if (_selectedInverterId != null &&
+          !invertersMap.values
+              .any((list) => list.any((i) => i.id == _selectedInverterId))) {
+        _selectedInverterId = null;
+      }
     });
   }
 
   Future<void> _create() async {
+    final isSplit = MediaQuery.sizeOf(context).width >= _splitBreakpoint;
     final id = await _db.insertSolarInstallation(
       SolarInstallation(inspectionId: widget.inspectionId),
     );
     if (!mounted) return;
+    if (isSplit) {
+      await _loadData();
+      if (!mounted) return;
+      setState(() {
+        _selectedInstallationId = id;
+        _selectedInverterId = null;
+      });
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -101,37 +128,60 @@ class _SolarInstallationsListPageState
       ),
     );
     if (confirmed == true) {
+      if (_selectedInstallationId == item.id) {
+        setState(() => _selectedInstallationId = null);
+      }
       await _db.deleteSolarInstallation(item.id!);
       _loadData();
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _deleteInverter(SolarInverter inverter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Omvormer verwijderen'),
+        content: const Text(
+            'Weet je zeker dat je deze omvormer wilt verwijderen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuleren'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Verwijderen',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      if (_selectedInverterId == inverter.id) {
+        setState(() => _selectedInverterId = null);
+      }
+      await _db.deleteSolarInverter(inverter.id!);
+      _loadData();
+    }
+  }
+
+  Widget _buildFullList(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.solarTitle)),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _create,
-        icon: const Icon(Icons.add),
-        label: Text(l10n.newInstallation),
-      ),
-      body: Column(
-        children: [
-          _NavBar(inspectionId: widget.inspectionId),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _installations.isEmpty
-                    ? Center(
-                        child: Text(
-                          l10n.noInstallations,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_installations.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.noInstallations,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
                         padding: const EdgeInsets.only(bottom: 80),
                         itemCount: _installations.length,
                         itemBuilder: (context, index) {
@@ -210,8 +260,21 @@ class _SolarInstallationsListPageState
                                       subtitle: inv.locationFull.isNotEmpty
                                           ? Text(inv.locationFull)
                                           : null,
-                                      trailing:
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.red,
+                                                size: 20),
+                                            onPressed: () =>
+                                                _deleteInverter(inv),
+                                          ),
+                                          const SizedBox(width: 4),
                                           const Icon(Icons.chevron_right),
+                                        ],
+                                      ),
                                       onTap: () async {
                                         await Navigator.push(
                                           context,
@@ -230,7 +293,206 @@ class _SolarInstallationsListPageState
                             ),
                           );
                         },
+                      );
+  }
+
+  Widget _buildSplitList(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_installations.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.noInstallations,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 80),
+      itemCount: _installations.length,
+      itemBuilder: (context, index) {
+        final item = _installations[index];
+        final inverters = _invertersByInstallation[item.id!] ?? [];
+        final isInstallationActive =
+            _selectedInverterId == null && item.id == _selectedInstallationId;
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                tileColor: isInstallationActive
+                    ? Theme.of(context).colorScheme.primaryContainer
+                        .withValues(alpha: 0.4)
+                    : null,
+                leading: const Icon(Icons.solar_power,
+                    color: Color(0xFF1976D2)),
+                title: Text(
+                  item.location.isNotEmpty
+                      ? item.location
+                      : l10n.installationNumber(item.id!),
+                ),
+                subtitle: item.panelCount != null
+                    ? Text(l10n.panelCount(item.panelCount!))
+                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.red),
+                      onPressed: () => _delete(item),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                onTap: () => setState(() {
+                  _selectedInstallationId = item.id;
+                  _selectedInverterId = null;
+                }),
+              ),
+              if (inverters.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Geen omvormers',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                )
+              else
+                ...inverters.map((inv) {
+                  final isInverterActive = inv.id == _selectedInverterId;
+                  return ListTile(
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.only(left: 32, right: 16),
+                    tileColor: isInverterActive
+                        ? Theme.of(context).colorScheme.primaryContainer
+                            .withValues(alpha: 0.4)
+                        : null,
+                    leading: const Icon(Icons.electric_bolt,
+                        color: Color(0xFF1976D2), size: 20),
+                    title: Text(inv.displayName),
+                    subtitle: inv.locationFull.isNotEmpty
+                        ? Text(inv.locationFull)
+                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red, size: 20),
+                          onPressed: () => _deleteInverter(inv),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                    onTap: () => setState(() {
+                      _selectedInverterId = inv.id;
+                      _selectedInstallationId = null;
+                    }),
+                  );
+                }),
+              const SizedBox(height: 4),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailPane(BuildContext context) {
+    final selectedInverterId = _selectedInverterId;
+    if (selectedInverterId != null) {
+      return SolarInverterDetailView(
+        key: ValueKey('inverter-$selectedInverterId'),
+        inverterId: selectedInverterId,
+        inspectionId: widget.inspectionId,
+        onSavedAndClose: () => setState(() => _selectedInverterId = null),
+        onNotFound: () => setState(() => _selectedInverterId = null),
+        onInverterUpdated: (updated) {
+          setState(() {
+            final list = _invertersByInstallation[updated.solarInstallationId];
+            if (list != null) {
+              final idx = list.indexWhere((i) => i.id == updated.id);
+              if (idx >= 0) list[idx] = updated;
+            }
+          });
+        },
+      );
+    }
+
+    final selectedInstallationId = _selectedInstallationId;
+    if (selectedInstallationId == null) {
+      return const Center(
+        child: Text(
+          'Selecteer een zonnestroominstallatie of omvormer om de details te bekijken.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+    return SolarInstallationDetailView(
+      key: ValueKey('installation-$selectedInstallationId'),
+      installationId: selectedInstallationId,
+      inspectionId: widget.inspectionId,
+      onSavedAndClose: () => setState(() => _selectedInstallationId = null),
+      onNotFound: () => setState(() => _selectedInstallationId = null),
+      onInstallationUpdated: (updated) {
+        setState(() {
+          final idx = _installations.indexWhere((i) => i.id == updated.id);
+          if (idx >= 0) _installations[idx] = updated;
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.solarTitle)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _create,
+        icon: const Icon(Icons.add),
+        label: Text(l10n.newInstallation),
+      ),
+      body: Column(
+        children: [
+          _NavBar(inspectionId: widget.inspectionId),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isSplit = constraints.maxWidth >= _splitBreakpoint;
+                if (!isSplit) {
+                  return _buildFullList(context);
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 380,
+                      child: _buildSplitList(context),
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: _buildDetailPane(context),
                       ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -257,7 +519,7 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.home_outlined, 'Inspectie',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.electrical_services, 'Verdelers',
+            _btn(context, Icons.lan, 'Verdelers',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.solar_power, 'Zonnestroom',

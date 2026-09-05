@@ -23,6 +23,7 @@ class GeneralData {
   final String clientPostalCity;
   final String clientContact;
   final String clientPhone;
+  final String clientEmail;
   final String installationResponsibleName;
   final String installationResponsiblePhone;
   final String inspectionAddressName;
@@ -30,6 +31,7 @@ class GeneralData {
   final String inspectionAddressPostalCity;
   final String inspectionAddressContact;
   final String inspectionAddressPhone;
+  final String inspectionAddressEmail;
   final String inspectorCompany;
   final String inspectorAddress;
   final String inspectorPostalCity;
@@ -47,6 +49,7 @@ class GeneralData {
     this.clientPostalCity = '',
     this.clientContact = '',
     this.clientPhone = '',
+    this.clientEmail = '',
     this.installationResponsibleName = '',
     this.installationResponsiblePhone = '',
     this.inspectionAddressName = '',
@@ -54,6 +57,7 @@ class GeneralData {
     this.inspectionAddressPostalCity = '',
     this.inspectionAddressContact = '',
     this.inspectionAddressPhone = '',
+    this.inspectionAddressEmail = '',
     this.inspectorCompany = '',
     this.inspectorAddress = '',
     this.inspectorPostalCity = '',
@@ -73,6 +77,7 @@ class GeneralData {
       'client_postal_city': clientPostalCity,
       'client_contact': clientContact,
       'client_phone': clientPhone,
+      'client_email': clientEmail,
       'installation_responsible_name': installationResponsibleName,
       'installation_responsible_phone': installationResponsiblePhone,
       'inspection_address_name': inspectionAddressName,
@@ -80,6 +85,7 @@ class GeneralData {
       'inspection_address_postal_city': inspectionAddressPostalCity,
       'inspection_address_contact': inspectionAddressContact,
       'inspection_address_phone': inspectionAddressPhone,
+      'inspection_address_email': inspectionAddressEmail,
       'inspector_company': inspectorCompany,
       'inspector_address': inspectorAddress,
       'inspector_postal_city': inspectorPostalCity,
@@ -100,6 +106,7 @@ class GeneralData {
       clientPostalCity: map['client_postal_city'] as String? ?? '',
       clientContact: map['client_contact'] as String? ?? '',
       clientPhone: map['client_phone'] as String? ?? '',
+      clientEmail: map['client_email'] as String? ?? '',
       installationResponsibleName:
           map['installation_responsible_name'] as String? ?? '',
       installationResponsiblePhone:
@@ -109,6 +116,7 @@ class GeneralData {
       inspectionAddressPostalCity: map['inspection_address_postal_city'] as String? ?? '',
       inspectionAddressContact: map['inspection_address_contact'] as String? ?? '',
       inspectionAddressPhone: map['inspection_address_phone'] as String? ?? '',
+      inspectionAddressEmail: map['inspection_address_email'] as String? ?? '',
       inspectorCompany: map['inspector_company'] as String? ?? '',
       inspectorAddress: map['inspector_address'] as String? ?? '',
       inspectorPostalCity: map['inspector_postal_city'] as String? ?? '',
@@ -128,6 +136,7 @@ class GeneralData {
     String? clientPostalCity,
     String? clientContact,
     String? clientPhone,
+    String? clientEmail,
     String? installationResponsibleName,
     String? installationResponsiblePhone,
     String? inspectionAddressName,
@@ -135,6 +144,7 @@ class GeneralData {
     String? inspectionAddressPostalCity,
     String? inspectionAddressContact,
     String? inspectionAddressPhone,
+    String? inspectionAddressEmail,
     String? inspectorCompany,
     String? inspectorAddress,
     String? inspectorPostalCity,
@@ -152,6 +162,7 @@ class GeneralData {
       clientPostalCity: clientPostalCity ?? this.clientPostalCity,
       clientContact: clientContact ?? this.clientContact,
       clientPhone: clientPhone ?? this.clientPhone,
+      clientEmail: clientEmail ?? this.clientEmail,
       installationResponsibleName:
           installationResponsibleName ?? this.installationResponsibleName,
       installationResponsiblePhone:
@@ -161,6 +172,7 @@ class GeneralData {
       inspectionAddressPostalCity: inspectionAddressPostalCity ?? this.inspectionAddressPostalCity,
       inspectionAddressContact: inspectionAddressContact ?? this.inspectionAddressContact,
       inspectionAddressPhone: inspectionAddressPhone ?? this.inspectionAddressPhone,
+      inspectionAddressEmail: inspectionAddressEmail ?? this.inspectionAddressEmail,
       inspectorCompany: inspectorCompany ?? this.inspectorCompany,
       inspectorAddress: inspectorAddress ?? this.inspectorAddress,
       inspectorPostalCity: inspectorPostalCity ?? this.inspectorPostalCity,

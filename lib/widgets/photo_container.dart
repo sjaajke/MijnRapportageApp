@@ -26,6 +26,7 @@ class PhotoContainer extends StatelessWidget {
   final double? height;
   final double? width;
   final double? aspectRatio;
+  final BoxFit fit;
 
   const PhotoContainer({
     super.key,
@@ -35,6 +36,7 @@ class PhotoContainer extends StatelessWidget {
     this.height = 200,
     this.width,
     this.aspectRatio,
+    this.fit = BoxFit.cover,
   });
 
   @override
@@ -52,7 +54,7 @@ class PhotoContainer extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: Image.file(
                 File(photoPath!),
-                fit: BoxFit.cover,
+                fit: fit,
                 width: double.infinity,
                 height: double.infinity,
               ),

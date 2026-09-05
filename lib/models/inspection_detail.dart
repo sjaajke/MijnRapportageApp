@@ -31,6 +31,7 @@ class InspectionDetail {
   final String methodeAanvullendOnderzoek;
   final String methodeCriteria;
   final String inleidingToelichting;
+  final String herstelVerklaring;
   // Netaansluiting
   final String aardingsstelsel;
   final String netaansluiting;
@@ -40,6 +41,7 @@ class InspectionDetail {
   final String bijzondereInstallatie;
   final String bouwjaar;
   final String oppervlakte;
+  final String gebouwhoogte;
 
   InspectionDetail({
     this.id,
@@ -57,6 +59,7 @@ class InspectionDetail {
     this.methodeAanvullendOnderzoek = '',
     this.methodeCriteria = '',
     this.inleidingToelichting = '',
+    this.herstelVerklaring = '',
     this.aardingsstelsel = '',
     this.netaansluiting = '',
     this.hoofdaansluiting = '',
@@ -64,6 +67,7 @@ class InspectionDetail {
     this.bijzondereInstallatie = '',
     this.bouwjaar = '',
     this.oppervlakte = '',
+    this.gebouwhoogte = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -83,6 +87,7 @@ class InspectionDetail {
       'methode_aanvullend_onderzoek': methodeAanvullendOnderzoek,
       'methode_criteria': methodeCriteria,
       'inleiding_toelichting': inleidingToelichting,
+      'herstel_verklaring': herstelVerklaring,
       'aardingsstelsel': aardingsstelsel,
       'netaansluiting': netaansluiting,
       'hoofdaansluiting': hoofdaansluiting,
@@ -90,6 +95,7 @@ class InspectionDetail {
       'bijzondere_installatie': bijzondereInstallatie,
       'bouwjaar': bouwjaar,
       'oppervlakte': oppervlakte,
+      'gebouwhoogte': gebouwhoogte,
     };
   }
 
@@ -112,6 +118,7 @@ class InspectionDetail {
           map['methode_aanvullend_onderzoek'] as String? ?? '',
       methodeCriteria: map['methode_criteria'] as String? ?? '',
       inleidingToelichting: map['inleiding_toelichting'] as String? ?? '',
+      herstelVerklaring: map['herstel_verklaring'] as String? ?? '',
       aardingsstelsel: map['aardingsstelsel'] as String? ?? '',
       netaansluiting: map['netaansluiting'] as String? ?? '',
       hoofdaansluiting: map['hoofdaansluiting'] as String? ?? '',
@@ -119,6 +126,7 @@ class InspectionDetail {
       bijzondereInstallatie: map['bijzondere_installatie'] as String? ?? '',
       bouwjaar: map['bouwjaar'] as String? ?? '',
       oppervlakte: map['oppervlakte'] as String? ?? '',
+      gebouwhoogte: map['gebouwhoogte'] as String? ?? '',
     );
   }
 
@@ -138,6 +146,7 @@ class InspectionDetail {
     String? methodeAanvullendOnderzoek,
     String? methodeCriteria,
     String? inleidingToelichting,
+    String? herstelVerklaring,
     String? aardingsstelsel,
     String? netaansluiting,
     String? hoofdaansluiting,
@@ -145,6 +154,7 @@ class InspectionDetail {
     String? bijzondereInstallatie,
     String? bouwjaar,
     String? oppervlakte,
+    String? gebouwhoogte,
   }) {
     return InspectionDetail(
       id: id ?? this.id,
@@ -164,6 +174,7 @@ class InspectionDetail {
           methodeAanvullendOnderzoek ?? this.methodeAanvullendOnderzoek,
       methodeCriteria: methodeCriteria ?? this.methodeCriteria,
       inleidingToelichting: inleidingToelichting ?? this.inleidingToelichting,
+      herstelVerklaring: herstelVerklaring ?? this.herstelVerklaring,
       aardingsstelsel: aardingsstelsel ?? this.aardingsstelsel,
       netaansluiting: netaansluiting ?? this.netaansluiting,
       hoofdaansluiting: hoofdaansluiting ?? this.hoofdaansluiting,
@@ -172,6 +183,7 @@ class InspectionDetail {
           bijzondereInstallatie ?? this.bijzondereInstallatie,
       bouwjaar: bouwjaar ?? this.bouwjaar,
       oppervlakte: oppervlakte ?? this.oppervlakte,
+      gebouwhoogte: gebouwhoogte ?? this.gebouwhoogte,
     );
   }
 }

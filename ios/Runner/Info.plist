@@ -30,6 +30,8 @@
 	<string>MijnRapportage gebruikt de camera om foto's te maken van gebreken tijdens inspecties.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MijnRapportage gebruikt je fotobibliotheek om bestaande foto's toe te voegen aan inspecties.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MijnRapportage gebruikt de microfoon niet, maar de camera vereist deze toestemming om video-opties te tonen.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

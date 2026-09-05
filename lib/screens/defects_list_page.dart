@@ -31,6 +31,8 @@ import 'herstel_page.dart';
 /// the list on the left and the selected defect's detail on the right.
 const _splitBreakpoint = 800.0;
 
+enum _DefectSortMode { manual, classification }
+
 class DefectsListPage extends StatefulWidget {
   final int inspectionId;
 
@@ -48,6 +50,18 @@ class _DefectsListPageState extends State<DefectsListPage> {
   bool _selectionMode = false;
   Set<int> _selectedIds = {};
   int? _selectedDefectId;
+  _DefectSortMode _sortMode = _DefectSortMode.manual;
+
+  List<Defect> get _sortedDefects {
+    if (_sortMode != _DefectSortMode.classification) return _defects;
+    final sorted = [..._defects];
+    sorted.sort((a, b) {
+      final ai = Defect.classifications.indexOf(a.classification);
+      final bi = Defect.classifications.indexOf(b.classification);
+      return ai.compareTo(bi);
+    });
+    return sorted;
+  }
 
   @override
   void initState() {
@@ -79,7 +93,7 @@ class _DefectsListPageState extends State<DefectsListPage> {
   Future<void> _create() async {
     final isSplit = MediaQuery.sizeOf(context).width >= _splitBreakpoint;
     final id = await _db.insertDefect(
-      Defect(inspectionId: widget.inspectionId),
+      Defect(inspectionId: widget.inspectionId, sortOrder: _defects.length),
     );
     if (!mounted) return;
     if (isSplit) {
@@ -236,6 +250,15 @@ class _DefectsListPageState extends State<DefectsListPage> {
     }
   }
 
+  Future<void> _reorderDefects(int oldIndex, int newIndex) async {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final defect = _defects.removeAt(oldIndex);
+      _defects.insert(newIndex, defect);
+    });
+    await _db.updateDefectOrder(_defects.map((d) => d.id!).toList());
+  }
+
   Widget _buildList(BuildContext context, {required bool isSplit}) {
     final l10n = AppLocalizations.of(context);
 
@@ -252,14 +275,20 @@ class _DefectsListPageState extends State<DefectsListPage> {
       );
     }
 
-    return ListView.builder(
+    final canReorder = !_selectionMode && _sortMode == _DefectSortMode.manual;
+    final defects = _sortedDefects;
+
+    return ReorderableListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _defects.length,
+      itemCount: defects.length,
+      onReorder: canReorder ? _reorderDefects : (_, _) {},
+      buildDefaultDragHandles: false,
       itemBuilder: (context, index) {
-        final defect = _defects[index];
+        final defect = defects[index];
         final isSelected = _selectedIds.contains(defect.id);
         final isActive = isSplit && !_selectionMode && defect.id == _selectedDefectId;
         return Card(
+          key: ValueKey(defect.id),
           margin: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 4,
@@ -370,6 +399,14 @@ class _DefectsListPageState extends State<DefectsListPage> {
                         const SizedBox(width: 4),
                         const Icon(Icons.chevron_right),
                       ],
+                      const SizedBox(width: 4),
+                      if (canReorder)
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: const Icon(Icons.drag_handle),
+                        )
+                      else
+                        const SizedBox(width: 24),
                     ],
                   ),
             onTap: () async {
@@ -465,6 +502,24 @@ class _DefectsListPageState extends State<DefectsListPage> {
                 ),
               ]
             : [
+                PopupMenuButton<_DefectSortMode>(
+                  icon: const Icon(Icons.sort),
+                  tooltip: l10n.sortDefects,
+                  initialValue: _sortMode,
+                  onSelected: (mode) => setState(() => _sortMode = mode),
+                  itemBuilder: (context) => [
+                    CheckedPopupMenuItem(
+                      value: _DefectSortMode.manual,
+                      checked: _sortMode == _DefectSortMode.manual,
+                      child: Text(l10n.sortByManual),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: _DefectSortMode.classification,
+                      checked: _sortMode == _DefectSortMode.classification,
+                      child: Text(l10n.sortByClassification),
+                    ),
+                  ],
+                ),
                 if (_defects.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.checklist),
@@ -558,7 +613,7 @@ class _NavBar extends StatelessWidget {
             ),
             _btn(
               context,
-              Icons.electrical_services,
+              Icons.lan,
               'Verdelers',
               () => Navigator.push(
                 context,

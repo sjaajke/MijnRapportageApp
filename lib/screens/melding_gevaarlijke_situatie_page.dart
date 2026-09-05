@@ -69,6 +69,8 @@ class _MeldingGevaarlijkeSituatiePageState
   String _savedSigInspecteur = '';
   String _savedSigKlant = '';
 
+  late Defect _defect = widget.defect;
+
   List<CompanyInspector> _inspectors = [];
   bool _loading = true;
   bool _generating = false;
@@ -83,6 +85,16 @@ class _MeldingGevaarlijkeSituatiePageState
     final inspectors = await _db.getCompanyInspectors();
     final assessment = await _db.getFinalAssessment(widget.inspectionId);
     final generalData = await _db.getGeneralData(widget.inspectionId);
+    final inspectionDetail = await _db.getInspectionDetail(widget.inspectionId);
+    // Herlaad het gebrek uit de database: de aanroepende pagina kan een
+    // verouderde kopie doorgeven (zonder eerder opgeslagen klantgegevens)
+    // als die pagina zijn eigen state niet ververst na terugkeer.
+    if (widget.defect.id != null) {
+      final freshDefect = await _db.getDefect(widget.defect.id!);
+      if (freshDefect != null) {
+        _defect = freshDefect;
+      }
+    }
 
     // Pre-fill inspector name from assessment if available
     final preFilledName = assessment?.naam1.isNotEmpty == true
@@ -96,7 +108,24 @@ class _MeldingGevaarlijkeSituatiePageState
 
     final inspectionDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
     final locStreet = generalData?.inspectionAddressStreet ?? '';
+    final locPostalCity = generalData?.inspectionAddressPostalCity ?? '';
     final inspectorCompany = generalData?.inspectorCompany ?? '';
+
+    // Meldingstekst uit het gekozen rapport-sjabloon ("Rapport tekst
+    // wijzigen" → "Melding gevaarlijke situatie"), indien beschikbaar.
+    String templateMeldingstekst = '';
+    if (inspectionDetail != null && inspectionDetail.typeRapport.isNotEmpty) {
+      final templates = await _db.getReportTemplates();
+      final match = templates
+          .where((t) => t.typeRapport == inspectionDetail.typeRapport);
+      if (match.isNotEmpty) {
+        templateMeldingstekst = match.first.meldingGevaarlijkeSituatie
+            .replaceAll('[HUIDIGE DATUM]', inspectionDate)
+            .replaceAll('[INSPECTIE ADRES]', locStreet)
+            .replaceAll('[INSPECTIE PLAATS]', locPostalCity)
+            .replaceAll('[INSPECTIE BEDRIJF]', inspectorCompany);
+      }
+    }
 
     final tekst = StringBuffer();
     tekst.write('Op d.d. $inspectionDate heeft onze inspecteur');
@@ -114,10 +143,22 @@ class _MeldingGevaarlijkeSituatiePageState
         _inspectors = inspectors;
         _naamInspecteurCtrl.text = preFilledName;
         _savedSigInspecteur = preFilledSig;
-        _meldingstekstCtrl.text = tekst.toString();
+        _meldingstekstCtrl.text = templateMeldingstekst.isNotEmpty
+            ? templateMeldingstekst
+            : tekst.toString();
+        _naamKlantCtrl.text = _defect.meldingNaamKlant;
+        _savedSigKlant = _defect.meldingHandtekeningKlant;
         _loading = false;
       });
     }
+  }
+
+  Future<void> _saveKlantData() async {
+    _defect = _defect.copyWith(
+      meldingNaamKlant: _naamKlantCtrl.text,
+      meldingHandtekeningKlant: _savedSigKlant,
+    );
+    await _db.updateDefect(_defect);
   }
 
   Future<String> _exportSignature(SignatureController ctrl) async {
@@ -140,6 +181,7 @@ class _MeldingGevaarlijkeSituatiePageState
     if (b64.isNotEmpty) {
       setState(() => _savedSigKlant = b64);
       _sigKlant.clear();
+      await _saveKlantData();
     }
   }
 
@@ -402,7 +444,7 @@ class _MeldingGevaarlijkeSituatiePageState
                       CustomTextField(
                         label: 'Naam klant',
                         controller: _naamKlantCtrl,
-                        onChanged: (_) {},
+                        onChanged: (_) => _saveKlantData(),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -416,7 +458,10 @@ class _MeldingGevaarlijkeSituatiePageState
                       if (_savedSigKlant.isNotEmpty)
                         _SavedSigCard(
                           base64Png: _savedSigKlant,
-                          onClear: () => setState(() => _savedSigKlant = ''),
+                          onClear: () {
+                            setState(() => _savedSigKlant = '');
+                            _saveKlantData();
+                          },
                         )
                       else
                         _SigPad(

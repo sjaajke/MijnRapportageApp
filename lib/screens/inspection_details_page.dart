@@ -55,6 +55,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
   final _inleidingToelichting = TextEditingController();
   final _bouwjaarCtrl = TextEditingController();
   final _oppervlakteCtrl = TextEditingController();
+  final _gebouwhoogteCtrl = TextEditingController();
 
   final _bagService = BagService();
 
@@ -122,6 +123,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
       _inleidingToelichting.text = detail.inleidingToelichting;
       _bouwjaarCtrl.text = detail.bouwjaar;
       _oppervlakteCtrl.text = detail.oppervlakte;
+      _gebouwhoogteCtrl.text = detail.gebouwhoogte;
       _selectedGebouwfunctie = detail.gebouwfunctie.isEmpty
           ? []
           : detail.gebouwfunctie.split(',');
@@ -188,6 +190,9 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
         }
         if (result.gebruiksdoelen.isNotEmpty) {
           _selectedGebouwfunctie = result.gebruiksdoelen;
+        }
+        if (result.gebouwhoogte != null) {
+          _gebouwhoogteCtrl.text = '${result.gebouwhoogte}';
         }
       });
       await _autoSave();
@@ -335,6 +340,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
       bijzondereInstallatie: _selectedBijzondereInstallatie.join(','),
       bouwjaar: _bouwjaarCtrl.text,
       oppervlakte: _oppervlakteCtrl.text,
+      gebouwhoogte: _gebouwhoogteCtrl.text,
     );
     await _db.updateInspectionDetail(updated);
     _detail = updated;
@@ -356,6 +362,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
     _inleidingToelichting.dispose();
     _bouwjaarCtrl.dispose();
     _oppervlakteCtrl.dispose();
+    _gebouwhoogteCtrl.dispose();
     super.dispose();
   }
 
@@ -566,11 +573,29 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
                     controller: _bouwjaarCtrl,
                     onChanged: (_) => _autoSave(),
                   ),
-                  CustomTextField(
-                    label: l10n.gebruiksoppervlakte,
-                    controller: _oppervlakteCtrl,
-                    onChanged: (_) => _autoSave(),
-                    keyboardType: TextInputType.number,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: CustomTextField(
+                          label: l10n.gebruiksoppervlakte,
+                          controller: _oppervlakteCtrl,
+                          onChanged: (_) => _autoSave(),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: CustomTextField(
+                          label: l10n.gebouwhoogte,
+                          controller: _gebouwhoogteCtrl,
+                          onChanged: (_) => _autoSave(),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
                   // ── Omvang ──────────────────────────────────────────────────
@@ -792,7 +817,7 @@ class _NavBar extends StatelessWidget {
             ),
             _btn(
               context,
-              Icons.electrical_services,
+              Icons.lan,
               'Verdelers',
               () => Navigator.push(
                 context,

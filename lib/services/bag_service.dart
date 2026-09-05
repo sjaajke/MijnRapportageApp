@@ -35,23 +35,28 @@ class BagResult {
   final int? bouwjaar;
   final int? oppervlakte;
   final List<String> gebruiksdoelen;
+  final double? gebouwhoogte;
 
   BagResult({
     required this.matchedAddress,
     this.bouwjaar,
     this.oppervlakte,
     this.gebruiksdoelen = const [],
+    this.gebouwhoogte,
   });
 }
 
-/// Looks up building data (bouwjaar, gebruiksdoel, oppervlakte) for a Dutch
-/// address via the free, keyless PDOK services:
+/// Looks up building data (bouwjaar, gebruiksdoel, oppervlakte, gebouwhoogte)
+/// for a Dutch address via the free, keyless PDOK and 3DBAG services:
 /// - Locatieserver (geocoding: address text -> BAG verblijfsobject id)
-/// - BAG WFS (verblijfsobject id -> bouwjaar/oppervlakte/gebruiksdoel)
+/// - BAG WFS (verblijfsobject id -> bouwjaar/oppervlakte/gebruiksdoel/pand id)
+/// - 3DBAG API (pand id -> dak- en maaiveldhoogte, waaruit de gebouwhoogte
+///   wordt berekend als hoogste dakhoogte minus maaiveldhoogte)
 class BagService {
   static const _locatieserverUrl =
       'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free';
   static const _wfsUrl = 'https://service.pdok.nl/lv/bag/wfs/v2_0';
+  static const _bag3dUrl = 'https://api.3dbag.nl/collections/pand/items';
   static const _timeout = Duration(seconds: 10);
 
   /// Maps official BAG gebruiksdoel categories onto this app's
@@ -94,6 +99,7 @@ class BagService {
     final bouwjaar = props['bouwjaar'];
     final oppervlakte = props['oppervlakte'];
     final gebruiksdoelRaw = props['gebruiksdoel'] as String?;
+    final pandId = props['pandidentificatie'] as String?;
 
     final gebruiksdoelen = <String>{};
     if (gebruiksdoelRaw != null && gebruiksdoelRaw.isNotEmpty) {
@@ -104,6 +110,11 @@ class BagService {
       }
     }
 
+    double? gebouwhoogte;
+    if (pandId != null && pandId.isNotEmpty) {
+      gebouwhoogte = await _fetchGebouwhoogte(pandId);
+    }
+
     return BagResult(
       matchedAddress: addressDoc['weergavenaam'] as String? ?? query,
       bouwjaar: bouwjaar is int ? bouwjaar : int.tryParse('$bouwjaar'),
@@ -111,7 +122,38 @@ class BagService {
           ? oppervlakte
           : int.tryParse('$oppervlakte'),
       gebruiksdoelen: gebruiksdoelen.toList(),
+      gebouwhoogte: gebouwhoogte,
     );
+  }
+
+  /// Calculates the gebouwhoogte (highest roof height minus maaiveldhoogte)
+  /// for a pand via the 3DBAG API. Returns null if the pand is not present
+  /// in 3DBAG or the service could not be reached, since this is a
+  /// supplementary value and shouldn't fail the whole BAG lookup.
+  Future<double?> _fetchGebouwhoogte(String pandId) async {
+    try {
+      final uri = Uri.parse('$_bag3dUrl/NL.IMBAG.Pand.$pandId');
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return null;
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final cityObjects =
+          (body['feature'] as Map<String, dynamic>?)?['CityObjects']
+              as Map<String, dynamic>?;
+      final pandObject =
+          cityObjects?['NL.IMBAG.Pand.$pandId'] as Map<String, dynamic>?;
+      final attributes = pandObject?['attributes'] as Map<String, dynamic>?;
+      if (attributes == null) return null;
+
+      final maaiveld = attributes['b3_h_maaiveld'];
+      final dakMax = attributes['b3_h_dak_max'];
+      if (maaiveld is! num || dakMax is! num) return null;
+
+      final hoogte = dakMax - maaiveld;
+      return double.parse(hoogte.toStringAsFixed(1));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>> _findAddress(String query) async {

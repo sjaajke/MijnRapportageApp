@@ -24,6 +24,7 @@ import '../models/defect.dart';
 import '../models/tekening.dart';
 import '../models/tekening_pin.dart';
 import '../services/database_service.dart';
+import 'defect_detail_page.dart';
 
 class TekeningDetailPage extends StatefulWidget {
   final Tekening tekening;
@@ -562,6 +563,7 @@ class _PinConfigDialog extends StatefulWidget {
 class _PinConfigDialogState extends State<_PinConfigDialog> {
   List<Defect> _defects = [];
   bool _defectsLoading = true;
+  bool _creatingDefect = false;
 
   late String _kleur;
   late String _type;
@@ -611,6 +613,29 @@ class _PinConfigDialogState extends State<_PinConfigDialog> {
         _defectsLoading = false;
       });
     }
+  }
+
+  Future<void> _createNewDefect() async {
+    setState(() => _creatingDefect = true);
+    final db = DatabaseService();
+    final id = await db.insertDefect(Defect(inspectionId: widget.inspectionId));
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DefectDetailPage(
+          defectId: id,
+          inspectionId: widget.inspectionId,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _loadDefects();
+    if (!mounted) return;
+    setState(() {
+      _defectId = id;
+      _creatingDefect = false;
+    });
   }
 
   TekeningPin _buildPin() => TekeningPin(
@@ -802,20 +827,6 @@ class _PinConfigDialogState extends State<_PinConfigDialog> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    if (_defects.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade50,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.amber.shade200),
-        ),
-        child: const Text(
-          'Geen constateringen gevonden. Voeg eerst een constatering toe via het inspectie-menu.',
-          style: TextStyle(fontSize: 13),
-        ),
-      );
-    }
     if (_defectId != null &&
         !_defects.any((d) => d.id == _defectId)) {
       _defectId = null;
@@ -823,49 +834,78 @@ class _PinConfigDialogState extends State<_PinConfigDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<int?>(
-          initialValue: _defectId,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Selecteer constatering',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          items: [
-            const DropdownMenuItem<int?>(
-              value: null,
-              child: Text('— Geen koppeling —',
-                  style: TextStyle(color: Colors.grey)),
+        if (_defects.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.shade200),
             ),
-            ..._defects.map((d) {
-              final desc = d.description.isNotEmpty
-                  ? d.description
-                  : d.location;
-              final truncated = desc.length > 55
-                  ? '${desc.substring(0, 55)}…'
-                  : desc;
-              return DropdownMenuItem<int?>(
-                value: d.id,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: _defectColor(d.classification),
-                        shape: BoxShape.circle,
+            child: const Text(
+              'Geen constateringen gevonden. Maak hieronder een nieuwe aan.',
+              style: TextStyle(fontSize: 13),
+            ),
+          )
+        else
+          DropdownButtonFormField<int?>(
+            initialValue: _defectId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Selecteer constatering',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('— Geen koppeling —',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+              ..._defects.map((d) {
+                final desc = d.description.isNotEmpty
+                    ? d.description
+                    : d.location;
+                final truncated = desc.length > 55
+                    ? '${desc.substring(0, 55)}…'
+                    : desc;
+                return DropdownMenuItem<int?>(
+                  value: d.id,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: _defectColor(d.classification),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    Expanded(
-                        child: Text(truncated,
-                            overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-              );
-            }),
-          ],
-          onChanged: (val) => setState(() => _defectId = val),
+                      Expanded(
+                          child: Text(truncated,
+                              overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            onChanged: (val) => setState(() => _defectId = val),
+          ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: _creatingDefect ? null : _createNewDefect,
+            icon: _creatingDefect
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add, size: 18),
+            label: const Text('Nieuwe constatering aanmaken'),
+          ),
         ),
         const SizedBox(height: 10),
         TextField(

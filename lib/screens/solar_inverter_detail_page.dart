@@ -18,7 +18,9 @@
 import 'package:flutter/material.dart';
 import '../models/solar_inverter.dart';
 import '../models/solar_string_measurement.dart';
+import '../models/standard.dart';
 import '../services/database_service.dart';
+import '../widgets/autocomplete_text_field.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/location_picker_dialog.dart';
 import '../widgets/location_row.dart';
@@ -30,18 +32,65 @@ import 'switchboards_list_page.dart';
 import 'solar_installations_list_page.dart';
 import 'defects_list_page.dart';
 
-class SolarInverterDetailPage extends StatefulWidget {
+class SolarInverterDetailPage extends StatelessWidget {
   final int inverterId;
   final int inspectionId;
 
   const SolarInverterDetailPage({super.key, required this.inverterId, required this.inspectionId});
 
   @override
-  State<SolarInverterDetailPage> createState() =>
-      _SolarInverterDetailPageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Omvormer')),
+      body: Column(
+        children: [
+          _NavBar(inspectionId: inspectionId),
+          Expanded(
+            child: SolarInverterDetailView(
+              key: ValueKey(inverterId),
+              inverterId: inverterId,
+              inspectionId: inspectionId,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
+/// The editable inverter form, extracted so it can be embedded either as a
+/// full [SolarInverterDetailPage] or inline in a master-detail split view.
+class SolarInverterDetailView extends StatefulWidget {
+  final int inverterId;
+  final int inspectionId;
+
+  /// Called after the Save button persists changes, instead of the default
+  /// pop-navigation, so an embedding split view can clear the selection.
+  final VoidCallback? onSavedAndClose;
+
+  /// Called whenever the inverter is persisted, so an embedding list can
+  /// refresh its summary (name/location) live.
+  final ValueChanged<SolarInverter>? onInverterUpdated;
+
+  /// Called if the inverter no longer exists (e.g. deleted elsewhere),
+  /// instead of the default pop-navigation.
+  final VoidCallback? onNotFound;
+
+  const SolarInverterDetailView({
+    super.key,
+    required this.inverterId,
+    required this.inspectionId,
+    this.onSavedAndClose,
+    this.onInverterUpdated,
+    this.onNotFound,
+  });
+
+  @override
+  State<SolarInverterDetailView> createState() =>
+      _SolarInverterDetailViewState();
+}
+
+class _SolarInverterDetailViewState extends State<SolarInverterDetailView> {
   final _db = DatabaseService();
 
   final _locationController = TextEditingController();
@@ -68,6 +117,10 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
   List<String> _locationOptions = [];
   List<String> _locationAOptions = [];
   List<String> _locationBOptions = [];
+  List<Standard> _inverterStandards = [];
+  List<String> _inverterBrandOptions = [];
+  List<Standard> _panelStandards = [];
+  List<String> _panelBrandOptions = [];
   // Per-row controllers indexed by measurement id
   final Map<int, _RowControllers> _rowControllers = {};
   bool _loading = true;
@@ -81,13 +134,20 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
   Future<void> _loadData() async {
     final inv = await _db.getSolarInverter(widget.inverterId);
     if (inv == null) {
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      if (widget.onNotFound != null) {
+        widget.onNotFound!();
+      } else {
+        Navigator.pop(context);
+      }
       return;
     }
     final measurements = await _db.getSolarStringMeasurements(widget.inverterId);
     final locationStandards = await _db.getStandards('location');
     final locationAStandards = await _db.getStandards('location_a');
     final locationBStandards = await _db.getStandards('location_b');
+    final inverterBrandStandards = await _db.getStandards('inverter');
+    final panelBrandStandards = await _db.getStandards('panel');
 
     _locationController.text = inv.location;
     _locationAController.text = inv.locationA;
@@ -118,6 +178,12 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
       _locationOptions = locationStandards.map((s) => s.value).toList();
       _locationAOptions = locationAStandards.map((s) => s.value).toList();
       _locationBOptions = locationBStandards.map((s) => s.value).toList();
+      _inverterStandards = inverterBrandStandards;
+      _inverterBrandOptions =
+          inverterBrandStandards.map((s) => s.displayName).toSet().toList();
+      _panelStandards = panelBrandStandards;
+      _panelBrandOptions =
+          panelBrandStandards.map((s) => s.displayName).toSet().toList();
       _loading = false;
     });
   }
@@ -176,6 +242,7 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
     );
     await _db.updateSolarInverter(updated);
     _inverter = updated;
+    widget.onInverterUpdated?.call(updated);
   }
 
   Future<void> _saveRow(SolarStringMeasurement m) async {
@@ -268,46 +335,35 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Omvormer')),
-        body: Column(
-          children: [
-            _NavBar(inspectionId: widget.inspectionId),
-            const Expanded(child: Center(child: CircularProgressIndicator())),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final inv = _inverter!;
+    final selectedInverterBrand =
+        _inverterBrandController.text.trim().toLowerCase();
+    final inverterTypeOptions = (selectedInverterBrand.isEmpty
+            ? _inverterStandards
+            : _inverterStandards.where(
+                (s) => s.displayName.trim().toLowerCase() == selectedInverterBrand,
+              ))
+        .map((s) => s.value)
+        .toSet()
+        .toList();
+    final selectedPanelBrand = _panelBrandController.text.trim().toLowerCase();
+    final panelTypeOptions = (selectedPanelBrand.isEmpty
+            ? _panelStandards
+            : _panelStandards.where(
+                (s) => s.displayName.trim().toLowerCase() == selectedPanelBrand,
+              ))
+        .map((s) => s.value)
+        .toSet()
+        .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(inv.displayName.isNotEmpty ? inv.displayName : 'Omvormer'),
-      ),
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _NavBar(inspectionId: widget.inspectionId),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-            SizedBox(
-              width: 140,
-              child: PhotoContainer(
-                label: 'Foto',
-                photoPath: inv.photoPath,
-                height: 110,
-                onPhotoSelected: (path) {
-                  setState(() {
-                    _inverter = inv.copyWith(photoPath: path);
-                  });
-                  _saveInverter();
-                },
-              ),
-            ),
             LocationRow(
               label: 'Locatie',
               controller: _locationController,
@@ -326,7 +382,7 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
               onChanged: (_) => _saveInverter(),
               onPick: _locationBOptions.isEmpty ? null : _pickLocationB,
             ),
-            SectionHeader(title: 'Omvormer'),
+            const SizedBox(height: 8),
             CustomTextField(
               label: 'Naam/ code omvormer',
               controller: _inverterNameController,
@@ -335,118 +391,191 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
             Row(
               children: [
                 Expanded(
-                  child: CustomTextField(
+                  child: AutocompleteTextField(
                     label: 'Merk',
                     controller: _inverterBrandController,
-                    onChanged: (_) => _saveInverter(),
+                    options: _inverterBrandOptions,
+                    onChanged: (v) {
+                      setState(() {});
+                      _saveInverter();
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: CustomTextField(
+                  child: AutocompleteTextField(
                     label: 'Type',
                     controller: _inverterTypeController,
-                    onChanged: (_) => _saveInverter(),
+                    options: inverterTypeOptions,
+                    onChanged: (v) {
+                      _saveInverter();
+                    },
                   ),
                 ),
               ],
             ),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: CustomTextField(
-                    label: 'IP',
-                    controller: _inverterIpController,
-                    onChanged: (_) => _saveInverter(),
+                  child: PhotoContainer(
+                    label: 'Foto',
+                    photoPath: inv.photoPath,
+                    aspectRatio: 4 / 3,
+                    onPhotoSelected: (path) {
+                      setState(() {
+                        _inverter = inv.copyWith(photoPath: path);
+                      });
+                      _saveInverter();
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: CustomTextField(
-                    label: 'Isolatieklasse',
-                    controller: _inverterIsolationClassController,
-                    onChanged: (_) => _saveInverter(),
+                  child: PhotoContainer(
+                    label: 'Type plaatje',
+                    photoPath: inv.typePlaatjePath,
+                    aspectRatio: 4 / 3,
+                    onPhotoSelected: (path) {
+                      setState(() {
+                        _inverter = inv.copyWith(typePlaatjePath: path);
+                      });
+                      _saveInverter();
+                    },
                   ),
                 ),
               ],
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Max VDC',
-                    controller: _inverterMaxVdcController,
-                    onChanged: (_) => _saveInverter(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Max IDC',
-                    controller: _inverterMaxIdcController,
-                    onChanged: (_) => _saveInverter(),
-                  ),
-                ),
-              ],
+            SectionHeader(
+              title: 'Omvormer',
+              trailing: _visibilitySwitch(
+                value: inv.showInverterFields,
+                onChanged: (v) {
+                  setState(() {
+                    _inverter = inv.copyWith(showInverterFields: v);
+                  });
+                  _saveInverter();
+                },
+              ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Isc pv',
-                    controller: _inverterIscPvController,
-                    onChanged: (_) => _saveInverter(),
+            if (inv.showInverterFields) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'IP',
+                      controller: _inverterIpController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Inom',
-                    controller: _inverterInomController,
-                    onChanged: (_) => _saveInverter(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Isolatieklasse',
+                      controller: _inverterIsolationClassController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Max VDC',
+                      controller: _inverterMaxVdcController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Max IDC',
+                      controller: _inverterMaxIdcController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Isc pv',
+                      controller: _inverterIscPvController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Inom',
+                      controller: _inverterInomController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            SectionHeader(
+              title: 'Paneel',
+              trailing: _visibilitySwitch(
+                value: inv.showPanelFields,
+                onChanged: (v) {
+                  setState(() {
+                    _inverter = inv.copyWith(showPanelFields: v);
+                  });
+                  _saveInverter();
+                },
+              ),
             ),
-            SectionHeader(title: 'Paneel'),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Merk',
-                    controller: _panelBrandController,
-                    onChanged: (_) => _saveInverter(),
+            if (inv.showPanelFields) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: AutocompleteTextField(
+                      label: 'Merk',
+                      controller: _panelBrandController,
+                      options: _panelBrandOptions,
+                      onChanged: (v) {
+                        setState(() {});
+                        _saveInverter();
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Type',
-                    controller: _panelTypeController,
-                    onChanged: (_) => _saveInverter(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AutocompleteTextField(
+                      label: 'Type',
+                      controller: _panelTypeController,
+                      options: panelTypeOptions,
+                      onChanged: (v) {
+                        _saveInverter();
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Short-circuit current',
-                    controller: _panelShortCircuitCurrentController,
-                    onChanged: (_) => _saveInverter(),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Short-circuit current',
+                      controller: _panelShortCircuitCurrentController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: 'Open-circuit voltage',
-                    controller: _panelOpenCircuitVoltageController,
-                    onChanged: (_) => _saveInverter(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Open-circuit voltage',
+                      controller: _panelOpenCircuitVoltageController,
+                      onChanged: (_) => _saveInverter(),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             SectionHeader(title: 'Leiding'),
             Row(
               children: [
@@ -488,16 +617,32 @@ class _SolarInverterDetailPageState extends State<SolarInverterDetailPage> {
                 messenger.showSnackBar(
                   const SnackBar(content: Text('Opgeslagen')),
                 );
-                navigator.pop();
+                if (widget.onSavedAndClose != null) {
+                  widget.onSavedAndClose!();
+                } else {
+                  navigator.pop();
+                }
               },
               child: const Text('Opslaan'),
             ),
-          ],
-        ),
-      ),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _visibilitySwitch({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value ? 'Zichtbaar' : 'Verborgen',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        Switch(value: value, onChanged: onChanged),
+      ],
     );
   }
 
@@ -640,7 +785,7 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.home_outlined, 'Inspectie',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.electrical_services, 'Verdelers',
+            _btn(context, Icons.lan, 'Verdelers',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.solar_power, 'Zonnestroom',

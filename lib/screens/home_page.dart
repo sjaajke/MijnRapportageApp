@@ -28,10 +28,10 @@ import '../models/general_data.dart';
 import '../models/inspection.dart';
 import '../models/title_page.dart' as tp;
 import '../services/database_service.dart';
+import '../services/photo_service.dart';
 import '../services/xml_export_service.dart';
 import '../services/xml_import_service.dart';
 import '../services/pdf_export_service.dart';
-import 'title_page.dart';
 import 'inspection_menu_page.dart';
 import 'settings_page.dart';
 
@@ -77,7 +77,14 @@ class _HomePageState extends State<HomePage> {
   Future<void> _importZip() async {
     final file = await openFile(
       acceptedTypeGroups: [
-        const XTypeGroup(label: 'ZIP', extensions: ['zip']),
+        const XTypeGroup(
+          label: 'ZIP',
+          extensions: ['zip'],
+          uniformTypeIdentifiers: [
+            'public.zip-archive',
+            'com.pkware.zip-archive',
+          ],
+        ),
       ],
     );
     if (file == null || !mounted) return;
@@ -124,7 +131,7 @@ class _HomePageState extends State<HomePage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TitlePageScreen(inspectionId: id),
+        builder: (_) => InspectionMenuPage(inspectionId: id),
       ),
     );
     _loadInspections();
@@ -326,21 +333,14 @@ class _HomePageState extends State<HomePage> {
         ? titlePage!.title.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_')
         : 'inspectie_${inspection.id}';
 
-    // Let user choose save location
-    final location = await getSaveLocation(
-      suggestedName: '$safeName.zip',
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'ZIP', extensions: ['zip']),
-      ],
-    );
-    if (location == null || !mounted) return;
-
-    await File(location.path).writeAsBytes(zipBytes);
+    final exportsDir = await PhotoService().getExportsDir();
+    final zipPath = p.join(exportsDir, '$safeName.zip');
+    await File(zipPath).writeAsBytes(zipBytes);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Geëxporteerd naar ${location.path}')),
-    );
+    try {
+      await Share.shareXFiles([XFile(zipPath)], text: l10n.shareText);
+    } catch (_) {}
   }
 
   Future<void> _duplicateInspection(Inspection inspection) async {

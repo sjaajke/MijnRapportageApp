@@ -263,6 +263,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
                         label: l10n.logo,
                         photoPath: _details?.logoPath,
                         height: 150,
+                        fit: BoxFit.contain,
                         onPhotoSelected: (path) {
                           setState(() => _details = _details?.copyWith(logoPath: path));
                           _autoSave();
@@ -273,6 +274,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
                         label: 'Logo SCIOS',
                         photoPath: _details?.logoSciosPath,
                         height: 150,
+                        fit: BoxFit.contain,
                         onPhotoSelected: (path) {
                           setState(() => _details = _details?.copyWith(logoSciosPath: path));
                           _autoSave();
@@ -287,6 +289,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
                     label: 'Logo titelpagina',
                     photoPath: _details?.logoTitelpaginaPath,
                     height: 450,
+                    fit: BoxFit.contain,
                     onPhotoSelected: (path) {
                       setState(() => _details = _details?.copyWith(logoTitelpaginaPath: path));
                       _autoSave();

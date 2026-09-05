@@ -48,6 +48,8 @@ class Switchboard {
   final Map<String, String> electricalMeasurements;
   final List<HoofdschakelaarEntry> hoofdschakelaars;
   final String opmerking;
+  final bool includeChecklistInPdf;
+  final int sortOrder;
 
   static const List<String> visualInspectionItems = [
     'Verdeler eenduidig herkenbaar',
@@ -97,6 +99,8 @@ class Switchboard {
     Map<String, String>? electricalMeasurements,
     List<HoofdschakelaarEntry>? hoofdschakelaars,
     this.opmerking = '',
+    this.includeChecklistInPdf = true,
+    this.sortOrder = 0,
   })  : visualInspection = visualInspection ??
             {for (var item in visualInspectionItems) item: 'N.v.t.'},
         measurements = measurements ??
@@ -130,6 +134,8 @@ class Switchboard {
       'electrical_measurements_json': jsonEncode(electricalMeasurements),
       'hoofdschakelaars_json': HoofdschakelaarEntry.listToJson(hoofdschakelaars),
       'opmerking': opmerking,
+      'include_checklist_in_pdf': includeChecklistInPdf ? 1 : 0,
+      'sort_order': sortOrder,
     };
   }
 
@@ -175,6 +181,8 @@ class Switchboard {
       hoofdschakelaars: HoofdschakelaarEntry.listFromJson(
           map['hoofdschakelaars_json'] as String?),
       opmerking: map['opmerking'] as String? ?? '',
+      includeChecklistInPdf: (map['include_checklist_in_pdf'] as int?) != 0,
+      sortOrder: map['sort_order'] as int? ?? 0,
     );
   }
 
@@ -203,6 +211,8 @@ class Switchboard {
     Map<String, String>? electricalMeasurements,
     List<HoofdschakelaarEntry>? hoofdschakelaars,
     String? opmerking,
+    bool? includeChecklistInPdf,
+    int? sortOrder,
   }) {
     return Switchboard(
       id: id ?? this.id,
@@ -230,6 +240,8 @@ class Switchboard {
           electricalMeasurements ?? this.electricalMeasurements,
       hoofdschakelaars: hoofdschakelaars ?? this.hoofdschakelaars,
       opmerking: opmerking ?? this.opmerking,
+      includeChecklistInPdf: includeChecklistInPdf ?? this.includeChecklistInPdf,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 }

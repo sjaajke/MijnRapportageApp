@@ -164,8 +164,88 @@ class _TitlePageScreenState extends State<TitlePageScreen> {
               effectiveLogoPath: _titlePage?.logoTitelpaginaPath ?? _companyDetails?.logoTitelpaginaPath,
               sciosLogoPath: _companyDetails?.logoSciosPath,
               addressNameText: _generalData?.inspectionAddressName ?? '',
+              locked: _titlePage!.layoutLocked,
+              onToggleLock: () => _saveLayout(
+                  _titlePage!.copyWith(layoutLocked: !_titlePage!.layoutLocked)),
             ),
             const SizedBox(height: 8),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: const Text(
+                  'Positie & afmetingen (voorbeeldpagina)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Titel',
+                    cx: _titlePage!.titleX, cy: _titlePage!.titleY,
+                    w: _titlePage!.titleW, h: _titlePage!.titleH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        titleX: cx, titleY: cy, titleW: w, titleH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Subtitel',
+                    cx: _titlePage!.subtitleX, cy: _titlePage!.subtitleY,
+                    w: _titlePage!.subtitleW, h: _titlePage!.subtitleH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        subtitleX: cx, subtitleY: cy, subtitleW: w, subtitleH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Foto',
+                    cx: _titlePage!.photoX, cy: _titlePage!.photoY,
+                    w: _titlePage!.photoW, h: _titlePage!.photoH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        photoX: cx, photoY: cy, photoW: w, photoH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Inspectiedatum',
+                    cx: _titlePage!.dateX, cy: _titlePage!.dateY,
+                    w: _titlePage!.dateW, h: _titlePage!.dateH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        dateX: cx, dateY: cy, dateW: w, dateH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Identificatiecode',
+                    cx: _titlePage!.codeX, cy: _titlePage!.codeY,
+                    w: _titlePage!.codeW, h: _titlePage!.codeH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        codeX: cx, codeY: cy, codeW: w, codeH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Projectnummer',
+                    cx: _titlePage!.projectX, cy: _titlePage!.projectY,
+                    w: _titlePage!.projectW, h: _titlePage!.projectH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        projectX: cx, projectY: cy, projectW: w, projectH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Inspectieadres',
+                    cx: _titlePage!.addressNameX, cy: _titlePage!.addressNameY,
+                    w: _titlePage!.addressNameW, h: _titlePage!.addressNameH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        addressNameX: cx, addressNameY: cy, addressNameW: w, addressNameH: h)),
+                  ),
+                  _PositionSizeRow(
+                    locked: _titlePage!.layoutLocked,
+                    label: 'Logo (SCIOS)',
+                    cx: _titlePage!.logoX, cy: _titlePage!.logoY,
+                    w: _titlePage!.logoW, h: _titlePage!.logoH,
+                    onChanged: (cx, cy, w, h) => _saveLayout(_titlePage!.copyWith(
+                        logoX: cx, logoY: cy, logoW: w, logoH: h)),
+                  ),
+                ],
+              ),
+            ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -200,28 +280,129 @@ class _TitlePageScreenState extends State<TitlePageScreen> {
               onChanged: (_) => _autoSave(),
             ),
             const SizedBox(height: 16),
-            PhotoContainer(
-              photoPath: _titlePage?.photoPath,
-              label: l10n.addPhoto,
-              aspectRatio: 4 / 3,
-              onPhotoSelected: (path) {
-                setState(() {
-                  _titlePage = _titlePage!.copyWith(photoPath: path);
-                });
-                _autoSave();
-              },
-            ),
-            const SizedBox(height: 16),
-            PhotoContainer(
-              photoPath: _titlePage?.logoTitelpaginaPath ?? _companyDetails?.logoTitelpaginaPath,
-              label: 'Logo titelpagina',
-              height: 150,
-              onPhotoSelected: (path) {
-                setState(() {
-                  _titlePage = _titlePage!.copyWith(logoTitelpaginaPath: path);
-                });
-                _autoSave();
-              },
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: PhotoContainer(
+                    photoPath: _titlePage?.photoPath,
+                    label: l10n.addPhoto,
+                    aspectRatio: 4 / 3,
+                    onPhotoSelected: (path) {
+                      setState(() {
+                        _titlePage = _titlePage!.copyWith(photoPath: path);
+                      });
+                      _autoSave();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CustomTextField(
+                              label: l10n.inspectionDate,
+                              controller: _dateController,
+                              onChanged: (_) => _autoSave(),
+                              readOnly: true,
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (date != null) {
+                                  _dateController.text =
+                                      DateFormat('dd-MM-yyyy').format(date);
+                                  _autoSave();
+                                }
+                              },
+                              onClear: () {
+                                setState(() => _dateController.clear());
+                                _autoSave();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: CustomTextField(
+                              label: l10n.inspectionDateEnd,
+                              controller: _dateEndController,
+                              onChanged: (_) => _autoSave(),
+                              readOnly: true,
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (date != null) {
+                                  _dateEndController.text =
+                                      DateFormat('dd-MM-yyyy').format(date);
+                                  _autoSave();
+                                }
+                              },
+                              onClear: () {
+                                setState(() => _dateEndController.clear());
+                                _autoSave();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      _TextColorRow(
+                        label: l10n.inspectionDate.isNotEmpty
+                            ? (_titlePage!.inspectionDateEnd.isNotEmpty
+                                ? 'Tekstkleur Inspectieperiode'
+                                : 'Tekstkleur Inspectiedatum')
+                            : 'Tekstkleur Datum',
+                        isWhite: _titlePage!.dateColorWhite,
+                        onChanged: (val) async {
+                          final updated = _titlePage!.copyWith(dateColorWhite: val);
+                          await _db.updateTitlePage(updated);
+                          setState(() => _titlePage = updated);
+                        },
+                      ),
+                      CustomTextField(
+                        label: l10n.identificationCode,
+                        controller: _codeController,
+                        onChanged: (_) => _autoSave(),
+                      ),
+                      _TextColorRow(
+                        label: 'Tekstkleur Identificatiecode',
+                        isWhite: _titlePage!.codeColorWhite,
+                        onChanged: (val) async {
+                          final updated = _titlePage!.copyWith(codeColorWhite: val);
+                          await _db.updateTitlePage(updated);
+                          setState(() => _titlePage = updated);
+                        },
+                      ),
+                      CustomTextField(
+                        label: l10n.projectNumber,
+                        controller: _projectController,
+                        onChanged: (_) => _autoSave(),
+                      ),
+                      _TextColorRow(
+                        label: 'Tekstkleur Projectnummer',
+                        isWhite: _titlePage!.projectColorWhite,
+                        onChanged: (val) async {
+                          final updated = _titlePage!.copyWith(projectColorWhite: val);
+                          await _db.updateTitlePage(updated);
+                          setState(() => _titlePage = updated);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             if (_companyDetails?.logoSciosPath != null &&
                 File(_companyDetails!.logoSciosPath!).existsSync()) ...[
@@ -237,103 +418,6 @@ class _TitlePageScreenState extends State<TitlePageScreen> {
                 contentPadding: EdgeInsets.zero,
               ),
             ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    label: l10n.inspectionDate,
-                    controller: _dateController,
-                    onChanged: (_) => _autoSave(),
-                    readOnly: true,
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2030),
-                      );
-                      if (date != null) {
-                        _dateController.text =
-                            DateFormat('dd-MM-yyyy').format(date);
-                        _autoSave();
-                      }
-                    },
-                    onClear: () {
-                      setState(() => _dateController.clear());
-                      _autoSave();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: CustomTextField(
-                    label: l10n.inspectionDateEnd,
-                    controller: _dateEndController,
-                    onChanged: (_) => _autoSave(),
-                    readOnly: true,
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2030),
-                      );
-                      if (date != null) {
-                        _dateEndController.text =
-                            DateFormat('dd-MM-yyyy').format(date);
-                        _autoSave();
-                      }
-                    },
-                    onClear: () {
-                      setState(() => _dateEndController.clear());
-                      _autoSave();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            _TextColorRow(
-              label: l10n.inspectionDate.isNotEmpty
-                  ? (_titlePage!.inspectionDateEnd.isNotEmpty
-                      ? 'Tekstkleur Inspectieperiode'
-                      : 'Tekstkleur Inspectiedatum')
-                  : 'Tekstkleur Datum',
-              isWhite: _titlePage!.dateColorWhite,
-              onChanged: (val) async {
-                final updated = _titlePage!.copyWith(dateColorWhite: val);
-                await _db.updateTitlePage(updated);
-                setState(() => _titlePage = updated);
-              },
-            ),
-            CustomTextField(
-              label: l10n.identificationCode,
-              controller: _codeController,
-              onChanged: (_) => _autoSave(),
-            ),
-            _TextColorRow(
-              label: 'Tekstkleur Identificatiecode',
-              isWhite: _titlePage!.codeColorWhite,
-              onChanged: (val) async {
-                final updated = _titlePage!.copyWith(codeColorWhite: val);
-                await _db.updateTitlePage(updated);
-                setState(() => _titlePage = updated);
-              },
-            ),
-            CustomTextField(
-              label: l10n.projectNumber,
-              controller: _projectController,
-              onChanged: (_) => _autoSave(),
-            ),
-            _TextColorRow(
-              label: 'Tekstkleur Projectnummer',
-              isWhite: _titlePage!.projectColorWhite,
-              onChanged: (val) async {
-                final updated = _titlePage!.copyWith(projectColorWhite: val);
-                await _db.updateTitlePage(updated);
-                setState(() => _titlePage = updated);
-              },
-            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () async {
@@ -356,6 +440,124 @@ class _TitlePageScreenState extends State<TitlePageScreen> {
   }
 }
 
+// ── Numeric position/size editor (top-left coordinate + size, in % of A4) ────
+
+class _PositionSizeRow extends StatefulWidget {
+  /// Current position (center, fraction 0-1) and size (fraction 0-1).
+  final String label;
+  final double cx, cy, w, h;
+  final bool locked;
+  final void Function(double cx, double cy, double w, double h) onChanged;
+
+  const _PositionSizeRow({
+    required this.label,
+    required this.cx,
+    required this.cy,
+    required this.w,
+    required this.h,
+    required this.onChanged,
+    this.locked = false,
+  });
+
+  @override
+  State<_PositionSizeRow> createState() => _PositionSizeRowState();
+}
+
+class _PositionSizeRowState extends State<_PositionSizeRow> {
+  late final TextEditingController _xCtrl, _yCtrl, _wCtrl, _hCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _xCtrl = TextEditingController(text: _fmt(_left(widget.cx, widget.w)));
+    _yCtrl = TextEditingController(text: _fmt(_top(widget.cy, widget.h)));
+    _wCtrl = TextEditingController(text: _fmt(widget.w * 100));
+    _hCtrl = TextEditingController(text: _fmt(widget.h * 100));
+  }
+
+  @override
+  void didUpdateWidget(_PositionSizeRow old) {
+    super.didUpdateWidget(old);
+    if (widget.cx != old.cx || widget.w != old.w) {
+      _xCtrl.text = _fmt(_left(widget.cx, widget.w));
+      _wCtrl.text = _fmt(widget.w * 100);
+    }
+    if (widget.cy != old.cy || widget.h != old.h) {
+      _yCtrl.text = _fmt(_top(widget.cy, widget.h));
+      _hCtrl.text = _fmt(widget.h * 100);
+    }
+  }
+
+  double _left(double cx, double w) => (cx - w / 2) * 100;
+  double _top(double cy, double h) => (cy - h / 2) * 100;
+  String _fmt(double v) => v.toStringAsFixed(1);
+
+  void _apply() {
+    final left = double.tryParse(_xCtrl.text.replaceAll(',', '.'));
+    final top = double.tryParse(_yCtrl.text.replaceAll(',', '.'));
+    final wPct = double.tryParse(_wCtrl.text.replaceAll(',', '.'));
+    final hPct = double.tryParse(_hCtrl.text.replaceAll(',', '.'));
+    if (left == null || top == null || wPct == null || hPct == null) return;
+
+    final w = (wPct / 100).clamp(0.02, 1.0);
+    final h = (hPct / 100).clamp(0.02, 1.0);
+    final cx = ((left / 100) + w / 2).clamp(0.0, 1.0);
+    final cy = ((top / 100) + h / 2).clamp(0.0, 1.0);
+    widget.onChanged(cx, cy, w, h);
+  }
+
+  @override
+  void dispose() {
+    _xCtrl.dispose();
+    _yCtrl.dispose();
+    _wCtrl.dispose();
+    _hCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(widget.label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: widget.locked ? Colors.grey.shade400 : Colors.grey)),
+          ),
+          Expanded(child: _numField('X %', _xCtrl)),
+          const SizedBox(width: 6),
+          Expanded(child: _numField('Y %', _yCtrl)),
+          const SizedBox(width: 6),
+          Expanded(child: _numField('B %', _wCtrl)),
+          const SizedBox(width: 6),
+          Expanded(child: _numField('H %', _hCtrl)),
+        ],
+      ),
+    );
+  }
+
+  Widget _numField(String label, TextEditingController ctrl) {
+    return TextField(
+      controller: ctrl,
+      enabled: !widget.locked,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: const TextStyle(fontSize: 12),
+      decoration: InputDecoration(
+        isDense: true,
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: (_) => _apply(),
+    );
+  }
+}
+
 // ── Draggable + resizable A4 preview ────────────────────────────────────────
 
 class _TitlePagePreview extends StatefulWidget {
@@ -365,6 +567,8 @@ class _TitlePagePreview extends StatefulWidget {
   final String? effectiveLogoPath;
   final String? sciosLogoPath;
   final String addressNameText;
+  final bool locked;
+  final VoidCallback onToggleLock;
   final Future<void> Function(model.TitlePage updated) onLayoutChanged;
 
   const _TitlePagePreview({
@@ -372,6 +576,8 @@ class _TitlePagePreview extends StatefulWidget {
     required this.titleText,
     required this.subtitleText,
     required this.onLayoutChanged,
+    required this.locked,
+    required this.onToggleLock,
     this.effectiveLogoPath,
     this.sciosLogoPath,
     this.addressNameText = '',
@@ -395,6 +601,8 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
   // Minimum sizes (fraction of canvas).
   static const double _minW = 0.10;
   static const double _minH = 0.04;
+
+  bool _expanded = true;
 
   @override
   void initState() {
@@ -503,19 +711,41 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.drag_indicator, size: 16, color: colorScheme.primary),
-                const SizedBox(width: 6),
-                Text(
-                  'Voorbeeldweergave — sleep en vergroot/verklein blokken',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Row(
+                children: [
+                  Icon(Icons.drag_indicator, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.locked
+                          ? 'Voorbeeldweergave — vergrendeld'
+                          : 'Voorbeeldweergave — sleep en vergroot/verklein blokken',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(widget.locked ? Icons.lock : Icons.lock_open,
+                        size: 20, color: colorScheme.primary),
+                    tooltip: widget.locked
+                        ? 'Ontgrendel velden'
+                        : 'Vergrendel velden',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: widget.onToggleLock,
+                  ),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 20,
+                    color: colorScheme.primary,
+                  ),
+                ],
+              ),
             ),
+            if (_expanded) ...[
             const SizedBox(height: 8),
             // A4 ratio (1 : √2)
             AspectRatio(
@@ -548,6 +778,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _titleX, cy: _titleY,
                         iw: _titleW, ih: _titleH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _titleX = _cx(_titleX + dx / cw, _titleW);
                           _titleY = _cy(_titleY + dy / ch, _titleH);
@@ -569,6 +800,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _subtitleX, cy: _subtitleY,
                         iw: _subtitleW, ih: _subtitleH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _subtitleX = _cx(_subtitleX + dx / cw, _subtitleW);
                           _subtitleY = _cy(_subtitleY + dy / ch, _subtitleH);
@@ -590,6 +822,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _dateX, cy: _dateY,
                         iw: _dateW, ih: _dateH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _dateX = _cx(_dateX + dx / cw, _dateW);
                           _dateY = _cy(_dateY + dy / ch, _dateH);
@@ -618,6 +851,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _codeX, cy: _codeY,
                         iw: _codeW, ih: _codeH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _codeX = _cx(_codeX + dx / cw, _codeW);
                           _codeY = _cy(_codeY + dy / ch, _codeH);
@@ -641,6 +875,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _projX, cy: _projY,
                         iw: _projW, ih: _projH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _projX = _cx(_projX + dx / cw, _projW);
                           _projY = _cy(_projY + dy / ch, _projH);
@@ -664,6 +899,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _photoX, cy: _photoY,
                         iw: _photoW, ih: _photoH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _photoX = _cx(_photoX + dx / cw, _photoW);
                           _photoY = _cy(_photoY + dy / ch, _photoH);
@@ -683,6 +919,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                         cx: _addrX, cy: _addrY,
                         iw: _addrW, ih: _addrH,
                         cw: cw, ch: ch,
+                        locked: widget.locked,
                         onMove: (dx, dy) => setState(() {
                           _addrX = _cx(_addrX + dx / cw, _addrW);
                           _addrY = _cy(_addrY + dy / ch, _addrH);
@@ -707,6 +944,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                           cx: _logoX, cy: _logoY,
                           iw: _logoW, ih: _logoH,
                           cw: cw, ch: ch,
+                          locked: widget.locked,
                           onMove: (dx, dy) => setState(() {
                             _logoX = _cx(_logoX + dx / cw, _logoW);
                             _logoY = _cy(_logoY + dy / ch, _logoH);
@@ -738,6 +976,7 @@ class _TitlePagePreviewState extends State<_TitlePagePreview> {
                 Text('Hoek = formaat aanpassen', style: _hintStyle(context)),
               ],
             ),
+            ],
           ],
         ),
       ),
@@ -761,6 +1000,7 @@ class _DraggableResizableItem extends StatelessWidget {
   final VoidCallback onMoveEnd;
   final void Function(double dw, double dh) onResize;
   final VoidCallback onResizeEnd;
+  final bool locked;
   final Widget child;
 
   const _DraggableResizableItem({
@@ -770,6 +1010,7 @@ class _DraggableResizableItem extends StatelessWidget {
     required this.onMove, required this.onMoveEnd,
     required this.onResize, required this.onResizeEnd,
     required this.child,
+    this.locked = false,
   });
 
   @override
@@ -789,37 +1030,40 @@ class _DraggableResizableItem extends StatelessWidget {
           children: [
             // ── Main drag area ──────────────────────────────
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onPanUpdate: (d) => onMove(d.delta.dx, d.delta.dy),
-                onPanEnd: (_) => onMoveEnd(),
-                child: child,
-              ),
+              child: locked
+                  ? child
+                  : GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onPanUpdate: (d) => onMove(d.delta.dx, d.delta.dy),
+                      onPanEnd: (_) => onMoveEnd(),
+                      child: child,
+                    ),
             ),
             // ── Resize handle (bottom-right corner) ────────
-            Positioned(
-              right: -handleSize / 2,
-              bottom: -handleSize / 2,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanUpdate: (d) => onResize(d.delta.dx, d.delta.dy),
-                onPanEnd: (_) => onResizeEnd(),
-                child: Container(
-                  width: handleSize,
-                  height: handleSize,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.blueGrey.shade400),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    Icons.open_in_full,
-                    size: 11,
-                    color: Colors.blueGrey.shade600,
+            if (!locked)
+              Positioned(
+                right: -handleSize / 2,
+                bottom: -handleSize / 2,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanUpdate: (d) => onResize(d.delta.dx, d.delta.dy),
+                  onPanEnd: (_) => onResizeEnd(),
+                  child: Container(
+                    width: handleSize,
+                    height: handleSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.blueGrey.shade400),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      Icons.open_in_full,
+                      size: 11,
+                      color: Colors.blueGrey.shade600,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

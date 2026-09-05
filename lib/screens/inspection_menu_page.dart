@@ -23,6 +23,7 @@ import '../models/inspection_detail.dart';
 import '../models/report_template.dart';
 import '../models/title_page.dart' as model;
 import '../services/database_service.dart';
+import '../utils/inleiding_placeholders.dart';
 import 'title_page.dart';
 import 'inleiding_page.dart';
 import 'general_data_page.dart';
@@ -34,6 +35,7 @@ import 'download_page.dart';
 import 'eindbeoordeling_page.dart';
 import 'home_page.dart';
 import 'tekeningen_list_page.dart';
+import 'bijlagen_list_page.dart';
 import 'herstelverklaring_page.dart';
 import 'herstel_overview_page.dart';
 import 'meetgegevens_page.dart';
@@ -58,6 +60,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
   int _solarCount = 0;
   int _defectCount = 0;
   bool _hasMeldingGevaarlijk = false;
+  String _status = 'draft';
 
   @override
   void initState() {
@@ -72,6 +75,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       _db.getSwitchboards(widget.inspectionId),
       _db.getSolarInstallations(widget.inspectionId),
       _db.getDefects(widget.inspectionId),
+      _db.getInspection(widget.inspectionId),
     ]);
     setState(() {
       _templates = results[0] as List<ReportTemplate>;
@@ -85,6 +89,8 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       _defectCount = defects.length;
       _hasMeldingGevaarlijk =
           defects.any((d) => d.classification == 'Rd');
+      final inspection = results[5] as dynamic;
+      _status = inspection?.status ?? 'draft';
       _loading = false;
     });
   }
@@ -118,7 +124,8 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
         detail.methodeVisueleInspectie.isNotEmpty ||
         detail.methodeMetingen.isNotEmpty ||
         detail.methodeAanvullendOnderzoek.isNotEmpty ||
-        detail.methodeCriteria.isNotEmpty;
+        detail.methodeCriteria.isNotEmpty ||
+        detail.herstelVerklaring.isNotEmpty;
 
     if (hasExistingData && mounted) {
       final confirmed = await showDialog<bool>(
@@ -147,9 +154,31 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       }
     }
 
+    // Fill TitlePage fields from template
+    var titlePage = await _db.getTitlePage(widget.inspectionId);
+    if (titlePage == null) {
+      await _db.insertTitlePage(
+          model.TitlePage(inspectionId: widget.inspectionId));
+      titlePage = await _db.getTitlePage(widget.inspectionId);
+    }
+    if (titlePage != null) {
+      await _db.updateTitlePage(titlePage.copyWith(
+        title: template.rapporttitel,
+        subtitle: template.subtitel,
+      ));
+    }
+
+    final generalData = await _db.getGeneralData(widget.inspectionId);
+
+    final inleiding = fillInleidingPlaceholders(
+      template.inleiding,
+      generalData: generalData,
+      titlePage: titlePage,
+    );
+
     await _db.updateInspectionDetail(detail.copyWith(
       typeRapport: typeRapport,
-      inleiding: template.inleiding,
+      inleiding: inleiding,
       performedAccordingTo: template.inspectieUitgevoerdVolgens,
       testedAgainst: template.elektrischMaterieelGetoetst,
       inleidingToelichting: template.inleidingToelichting,
@@ -157,6 +186,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       methodeMetingen: template.metingen,
       methodeAanvullendOnderzoek: template.aanvullendOnderzoek,
       methodeCriteria: template.vinklijstAfkeuringscriteria,
+      herstelVerklaring: template.herstelVerklaring,
     ));
 
     // Fill FinalAssessment from template
@@ -178,20 +208,6 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
               : null,
         ));
       }
-    }
-
-    // Fill TitlePage fields from template
-    var titlePage = await _db.getTitlePage(widget.inspectionId);
-    if (titlePage == null) {
-      await _db.insertTitlePage(
-          model.TitlePage(inspectionId: widget.inspectionId));
-      titlePage = await _db.getTitlePage(widget.inspectionId);
-    }
-    if (titlePage != null) {
-      await _db.updateTitlePage(titlePage.copyWith(
-        title: template.rapporttitel,
-        subtitle: template.subtitel,
-      ));
     }
 
     if (!mounted) return;
@@ -295,7 +311,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                 ),
                 const Divider(height: 32),
                 _MenuCard(
-                  icon: Icons.electrical_services,
+                  icon: Icons.lan,
                   title: l10n.switchboardsMenu,
                   subtitle: l10n.switchboardsMenuSubtitle,
                   showEmptyIndicator: _switchboardCount == 0,
@@ -396,6 +412,18 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                   ),
                 ),
                 _MenuCard(
+                  icon: Icons.attach_file,
+                  title: 'Bijlagen',
+                  subtitle: 'Voeg PDF-documenten toe aan het rapport',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          BijlagenListPage(inspectionId: widget.inspectionId),
+                    ),
+                  ),
+                ),
+                _MenuCard(
                   icon: Icons.assignment_turned_in_outlined,
                   title: 'Herstelverklaring',
                   subtitle: 'Verklaring van uitgevoerde herstelwerkzaamheden',
@@ -420,39 +448,85 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(l10n.completeInspectionButton),
-                        content: Text(l10n.completeInspectionConfirm),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: Text(l10n.cancel),
+                Row(
+                  children: [
+                    if (_status != 'completed')
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(l10n.completeInspectionButton),
+                                content: Text(l10n.completeInspectionConfirm),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(l10n.cancel),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: Text(l10n.complete),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              await _db.updateInspectionStatus(
+                                  widget.inspectionId, 'completed');
+                              if (!context.mounted) return;
+                              Navigator.popUntil(
+                                  context, (route) => route.isFirst);
+                            }
+                          },
+                          icon: const Icon(Icons.check_circle),
+                          label: Text(l10n.completeInspectionButton),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: Text(l10n.complete),
-                          ),
-                        ],
+                        ),
                       ),
-                    );
-                    if (confirmed == true) {
-                      await DatabaseService()
-                          .updateInspectionStatus(widget.inspectionId, 'completed');
-                      if (!context.mounted) return;
-                      Navigator.popUntil(context, (route) => route.isFirst);
-                    }
-                  },
-                  icon: const Icon(Icons.check_circle),
-                  label: Text(l10n.completeInspectionButton),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+                    if (_status == 'completed') ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(l10n.reopenInspectionButton),
+                                content: Text(l10n.reopenInspectionConfirm),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(l10n.cancel),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: Text(l10n.reopen),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) {
+                              await _db.updateInspectionStatus(
+                                  widget.inspectionId, 'draft');
+                              if (!context.mounted) return;
+                              setState(() => _status = 'draft');
+                            }
+                          },
+                          icon: const Icon(Icons.undo),
+                          label: Text(l10n.reopenInspectionButton),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange[800],
+                            side: BorderSide(color: Colors.orange[800]!),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -479,7 +553,7 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.list_outlined, 'Inspecties',
                 () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
                       builder: (_) => HomePage()), (route) => false)),
-            _btn(context, Icons.electrical_services, 'Verdelers',
+            _btn(context, Icons.lan, 'Verdelers',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.solar_power, 'Zonnestroom',

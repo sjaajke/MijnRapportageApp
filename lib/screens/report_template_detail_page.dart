@@ -39,6 +39,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
   final _subtitel = TextEditingController();
   final _inleiding = TextEditingController();
   final _tekstRapportVerklaring = TextEditingController();
+  final _herstelVerklaring = TextEditingController();
   final _visueleInspectieTitel = TextEditingController();
   final _visueleInspectie = TextEditingController();
   final _visueleInspectieToelichting = TextEditingController();
@@ -71,6 +72,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
       _subtitel.text = t.subtitel;
       _inleiding.text = t.inleiding;
       _tekstRapportVerklaring.text = t.tekstRapportVerklaring;
+      _herstelVerklaring.text = t.herstelVerklaring;
       _visueleInspectieTitel.text = t.visueleInspectieTitel;
       _visueleInspectie.text = t.visueleInspectie;
       _visueleInspectieToelichting.text = t.visueleInspectieToelichting;
@@ -100,6 +102,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
     _subtitel.dispose();
     _inleiding.dispose();
     _tekstRapportVerklaring.dispose();
+    _herstelVerklaring.dispose();
     _visueleInspectieTitel.dispose();
     _visueleInspectie.dispose();
     _visueleInspectieToelichting.dispose();
@@ -130,6 +133,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
       subtitel: _subtitel.text.trim(),
       inleiding: _inleiding.text,
       tekstRapportVerklaring: _tekstRapportVerklaring.text,
+      herstelVerklaring: _herstelVerklaring.text,
       visueleInspectieTitel: _visueleInspectieTitel.text.trim(),
       visueleInspectie: _visueleInspectie.text,
       visueleInspectieToelichting: _visueleInspectieToelichting.text,
@@ -216,6 +220,11 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
                 CustomTextField(
                   label: l10n.reportDeclaration,
                   controller: _tekstRapportVerklaring,
+                  maxLines: 6,
+                ),
+                CustomTextField(
+                  label: l10n.herstelVerklaring,
+                  controller: _herstelVerklaring,
                   maxLines: 6,
                 ),
                 CustomTextField(
@@ -341,9 +350,9 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
               ],
             ),
 
-            // ── Classificatie ────────────────────────────────────────────
+            // ── Melding gevaarlijke situatie ───────────────────────────────
             _Section(
-              title: 'Classificatie',
+              title: 'Melding gevaarlijke situatie',
               children: [
                 CustomTextField(
                   label: 'Melding gevaarlijke situatie',

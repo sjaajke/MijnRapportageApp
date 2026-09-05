@@ -16,6 +16,8 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import '../models/inspection_detail.dart';
+import '../services/database_service.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/section_header.dart';
 
@@ -29,61 +31,74 @@ class HerstelverklaringPage extends StatefulWidget {
 }
 
 class _HerstelverklaringPageState extends State<HerstelverklaringPage> {
+  final _db = DatabaseService();
   final _omschrijving = TextEditingController();
-  final _uitgevoerdDoor = TextEditingController();
-  final _datumHerstel = TextEditingController();
-  final _verklaring = TextEditingController();
-  final _opmerking = TextEditingController();
+
+  InspectionDetail? _detail;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    var detail = await _db.getInspectionDetail(widget.inspectionId);
+    if (detail == null) {
+      await _db.insertInspectionDetail(
+          InspectionDetail(inspectionId: widget.inspectionId));
+      detail = await _db.getInspectionDetail(widget.inspectionId);
+    }
+    if (detail != null) {
+      _omschrijving.text = detail.herstelVerklaring;
+    }
+    setState(() {
+      _detail = detail;
+      _loading = false;
+    });
+  }
+
+  Future<void> _autoSave() async {
+    if (_detail == null) return;
+    final updated = _detail!.copyWith(herstelVerklaring: _omschrijving.text);
+    await _db.updateInspectionDetail(updated);
+    _detail = updated;
+  }
 
   @override
   void dispose() {
+    _autoSave();
     _omschrijving.dispose();
-    _uitgevoerdDoor.dispose();
-    _datumHerstel.dispose();
-    _verklaring.dispose();
-    _opmerking.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Herstelverklaring')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Herstelverklaring')),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SectionHeader(title: 'Herstelwerkzaamheden'),
-            CustomTextField(
-              label: 'Omschrijving herstelwerkzaamheden',
-              controller: _omschrijving,
-              maxLines: 5,
+            const SizedBox(height: 8),
+            Expanded(
+              child: CustomTextField(
+                label: 'Herstelverklaring',
+                controller: _omschrijving,
+                onChanged: (_) => _autoSave(),
+                expands: true,
+              ),
             ),
-            CustomTextField(
-              label: 'Uitgevoerd door',
-              controller: _uitgevoerdDoor,
-            ),
-            CustomTextField(
-              label: 'Datum herstel',
-              controller: _datumHerstel,
-              hint: 'dd-mm-jjjj',
-            ),
-            const SizedBox(height: 16),
-            const SectionHeader(title: 'Verklaring'),
-            CustomTextField(
-              label: 'Verklaring',
-              controller: _verklaring,
-              maxLines: 5,
-            ),
-            const SizedBox(height: 16),
-            const SectionHeader(title: 'Opmerkingen'),
-            CustomTextField(
-              label: 'Opmerkingen',
-              controller: _opmerking,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 24),
           ],
         ),
       ),

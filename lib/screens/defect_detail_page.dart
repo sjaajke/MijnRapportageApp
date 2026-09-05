@@ -242,6 +242,7 @@ class _DefectDetailViewState extends State<DefectDetailView> {
     final classification = _mapKwalificatie(picked.kwalificatie);
     _descriptionController.text = picked.tekst;
     _toelichtingController.text = picked.toelichting;
+    await _db.updateAnnotationsColorForDefect(_defect!.id!, classification);
     setState(() {
       _defect = _defect!.copyWith(classification: classification);
     });
@@ -378,7 +379,7 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                       Tooltip(
                         message: 'Kies Naam/code',
                         child: IconButton.outlined(
-                          icon: const Icon(Icons.electrical_services_outlined),
+                          icon: const Icon(Icons.lan_outlined),
                           onPressed: _switchboardOptions.isEmpty ? null : _pickNaamCode,
                         ),
                       ),
@@ -395,7 +396,10 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                     label: l10n.classification,
                     value: defect.classification,
                     items: Defect.classifications,
-                    onChanged: (v) {
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      await _db.updateAnnotationsColorForDefect(
+                          defect.id!, v);
                       setState(() {
                         _defect = defect.copyWith(classification: v);
                       });
@@ -597,7 +601,7 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.home_outlined, 'Inspectie',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.electrical_services, 'Verdelers',
+            _btn(context, Icons.lan, 'Verdelers',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.solar_power, 'Zonnestroom',
@@ -642,14 +646,67 @@ class _ConstateringenPicker extends StatefulWidget {
 
 class _ConstateringenPickerState extends State<_ConstateringenPicker> {
   String _query = '';
+  String? _selectedGroep;
+  String? _selectedBeschrijving;
+
+  String _groepKey(RapportConstatering c) => c.groep.isEmpty ? '—' : c.groep;
+
+  List<String> get _groepen {
+    final set = <String>{};
+    for (final c in widget.items) {
+      set.add(_groepKey(c));
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  List<String> get _omschrijvingen {
+    if (_selectedGroep == null) return const [];
+    final set = <String>{};
+    for (final c in widget.items) {
+      if (_groepKey(c) == _selectedGroep && c.beschrijving.isNotEmpty) {
+        set.add(c.beschrijving);
+      }
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  void _selectGroep(String groep) {
+    setState(() {
+      if (_selectedGroep == groep) {
+        _selectedGroep = null;
+        _selectedBeschrijving = null;
+      } else {
+        _selectedGroep = groep;
+        _selectedBeschrijving = null;
+      }
+    });
+  }
+
+  void _selectBeschrijving(String beschrijving) {
+    setState(() {
+      _selectedBeschrijving =
+          _selectedBeschrijving == beschrijving ? null : beschrijving;
+    });
+  }
 
   List<RapportConstatering> get _filtered {
-    if (_query.isEmpty) return widget.items;
-    final q = _query.toLowerCase();
-    return widget.items.where((c) =>
-        c.groep.toLowerCase().contains(q) ||
-        c.beschrijving.toLowerCase().contains(q) ||
-        c.tekst.toLowerCase().contains(q)).toList();
+    var list = widget.items;
+    if (_selectedGroep != null) {
+      list = list.where((c) => _groepKey(c) == _selectedGroep).toList();
+    }
+    if (_selectedBeschrijving != null) {
+      list = list.where((c) => c.beschrijving == _selectedBeschrijving).toList();
+    }
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      list = list.where((c) =>
+          c.groep.toLowerCase().contains(q) ||
+          c.beschrijving.toLowerCase().contains(q) ||
+          c.tekst.toLowerCase().contains(q)).toList();
+    }
+    return list;
   }
 
   Color _kwColor(String k) {
@@ -714,6 +771,37 @@ class _ConstateringenPickerState extends State<_ConstateringenPicker> {
                 isDense: true,
               ),
               onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: SizedBox(
+              height: 180,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _SelectionColumn(
+                      label: 'Groep',
+                      items: _groepen,
+                      selected: _selectedGroep,
+                      onSelect: _selectGroep,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SelectionColumn(
+                      label: 'Omschrijvingen',
+                      items: _omschrijvingen,
+                      selected: _selectedBeschrijving,
+                      onSelect: _selectBeschrijving,
+                      emptyHint: _selectedGroep == null
+                          ? 'Kies eerst een groep'
+                          : 'Geen omschrijvingen',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -786,6 +874,84 @@ class _PickerRow {
   final String? group;
   final RapportConstatering? item;
   const _PickerRow({required this.isHeader, this.group, this.item});
+}
+
+class _SelectionColumn extends StatelessWidget {
+  final String label;
+  final List<String> items;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+  final String emptyHint;
+
+  const _SelectionColumn({
+    required this.label,
+    required this.items,
+    required this.selected,
+    required this.onSelect,
+    this.emptyHint = 'Geen resultaten',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: items.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        emptyHint,
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (ctx, i) {
+                      final value = items[i];
+                      final isSelected = value == selected;
+                      return Material(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Colors.transparent,
+                        child: InkWell(
+                          onTap: () => onSelect(value),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            child: Text(
+                              value,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ── Scope checkboxes ──────────────────────────────────────────────────────────
@@ -894,7 +1060,8 @@ class _AnnotatablePhotoState extends State<_AnnotatablePhoto> {
   void didUpdateWidget(covariant _AnnotatablePhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.photoPath != widget.photoPath ||
-        oldWidget.defectId != widget.defectId) {
+        oldWidget.defectId != widget.defectId ||
+        oldWidget.classification != widget.classification) {
       _loadAnnotations();
     }
   }

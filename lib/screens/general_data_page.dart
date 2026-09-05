@@ -42,6 +42,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
   final _clientPostalCity = TextEditingController();
   final _clientContact = TextEditingController();
   final _clientPhone = TextEditingController();
+  final _clientEmail = TextEditingController();
 
   final _installResponsibleName = TextEditingController();
   final _installResponsiblePhone = TextEditingController();
@@ -51,6 +52,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
   final _inspAddrPostalCity = TextEditingController();
   final _inspAddrContact = TextEditingController();
   final _inspAddrPhone = TextEditingController();
+  final _inspAddrEmail = TextEditingController();
 
   final _inspectorCompany = TextEditingController();
   final _inspectorAddress = TextEditingController();
@@ -98,6 +100,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       _clientPostalCity.text = data.clientPostalCity;
       _clientContact.text = data.clientContact;
       _clientPhone.text = data.clientPhone;
+      _clientEmail.text = data.clientEmail;
       _installResponsibleName.text = data.installationResponsibleName;
       _installResponsiblePhone.text = data.installationResponsiblePhone;
       _inspAddrName.text = data.inspectionAddressName;
@@ -105,6 +108,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       _inspAddrPostalCity.text = data.inspectionAddressPostalCity;
       _inspAddrContact.text = data.inspectionAddressContact;
       _inspAddrPhone.text = data.inspectionAddressPhone;
+      _inspAddrEmail.text = data.inspectionAddressEmail;
       _inspectorCompany.text = data.inspectorCompany;
       _inspectorAddress.text = data.inspectorAddress;
       _inspectorPostalCity.text = data.inspectorPostalCity;
@@ -132,6 +136,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       clientPostalCity: _clientPostalCity.text,
       clientContact: _clientContact.text,
       clientPhone: _clientPhone.text,
+      clientEmail: _clientEmail.text,
       installationResponsibleName: _installResponsibleName.text,
       installationResponsiblePhone: _installResponsiblePhone.text,
       inspectionAddressName: _inspAddrName.text,
@@ -139,6 +144,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       inspectionAddressPostalCity: _inspAddrPostalCity.text,
       inspectionAddressContact: _inspAddrContact.text,
       inspectionAddressPhone: _inspAddrPhone.text,
+      inspectionAddressEmail: _inspAddrEmail.text,
       inspectorCompany: _inspectorCompany.text,
       inspectorAddress: _inspectorAddress.text,
       inspectorPostalCity: _inspectorPostalCity.text,
@@ -211,6 +217,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
     _clientPostalCity.dispose();
     _clientContact.dispose();
     _clientPhone.dispose();
+    _clientEmail.dispose();
     _installResponsibleName.dispose();
     _installResponsiblePhone.dispose();
     _inspAddrName.dispose();
@@ -218,6 +225,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
     _inspAddrPostalCity.dispose();
     _inspAddrContact.dispose();
     _inspAddrPhone.dispose();
+    _inspAddrEmail.dispose();
     _inspectorCompany.dispose();
     _inspectorAddress.dispose();
     _inspectorPostalCity.dispose();
@@ -272,6 +280,12 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
               onChanged: (_) => _autoSave(),
               keyboardType: TextInputType.phone,
             ),
+            CustomTextField(
+              label: l10n.emailField,
+              controller: _clientEmail,
+              onChanged: (_) => _autoSave(),
+              keyboardType: TextInputType.emailAddress,
+            ),
             SectionHeader(title: l10n.installationResponsible),
             CustomTextField(
               label: l10n.installationResponsible,
@@ -310,6 +324,12 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
               controller: _inspAddrPhone,
               onChanged: (_) => _autoSave(),
               keyboardType: TextInputType.phone,
+            ),
+            CustomTextField(
+              label: l10n.emailField,
+              controller: _inspAddrEmail,
+              onChanged: (_) => _autoSave(),
+              keyboardType: TextInputType.emailAddress,
             ),
             SectionHeader(title: l10n.inspectionCompany),
             CustomTextField(

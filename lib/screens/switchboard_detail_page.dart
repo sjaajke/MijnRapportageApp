@@ -16,6 +16,7 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../models/switchboard.dart';
 import '../models/hoofdschakelaar_entry.dart';
@@ -35,17 +36,71 @@ import 'solar_installations_list_page.dart';
 import 'defect_detail_page.dart';
 import 'defects_list_page.dart';
 
-class SwitchboardDetailPage extends StatefulWidget {
+class SwitchboardDetailPage extends StatelessWidget {
   final int switchboardId;
   final int inspectionId;
 
-  const SwitchboardDetailPage({super.key, required this.switchboardId, required this.inspectionId});
+  const SwitchboardDetailPage({
+    super.key,
+    required this.switchboardId,
+    required this.inspectionId,
+  });
 
   @override
-  State<SwitchboardDetailPage> createState() => _SwitchboardDetailPageState();
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.switchboard)),
+      body: Column(
+        children: [
+          _NavBar(inspectionId: inspectionId),
+          Expanded(
+            child: SwitchboardDetailView(
+              key: ValueKey(switchboardId),
+              switchboardId: switchboardId,
+              inspectionId: inspectionId,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
+/// The editable switchboard form, extracted so it can be embedded either as
+/// a full [SwitchboardDetailPage] or inline in a master-detail split view.
+class SwitchboardDetailView extends StatefulWidget {
+  final int switchboardId;
+  final int inspectionId;
+
+  /// Called after the Save button persists changes, instead of the default
+  /// pop-navigation, so an embedding split view can clear the selection.
+  final VoidCallback? onSavedAndClose;
+
+  /// Called whenever the switchboard is persisted, so an embedding list can
+  /// refresh its summary (name/location) live.
+  final ValueChanged<Switchboard>? onSwitchboardUpdated;
+
+  /// Called if the switchboard no longer exists (e.g. deleted elsewhere),
+  /// instead of the default pop-navigation.
+  final VoidCallback? onNotFound;
+
+  const SwitchboardDetailView({
+    super.key,
+    required this.switchboardId,
+    required this.inspectionId,
+    this.onSavedAndClose,
+    this.onSwitchboardUpdated,
+    this.onNotFound,
+  });
+
+  @override
+  State<SwitchboardDetailView> createState() => _SwitchboardDetailViewState();
+}
+
+class _SwitchboardDetailViewState extends State<SwitchboardDetailView> {
+  static const _prefShowChecklist = 'switchboard_show_checklist';
+
   final _db = DatabaseService();
 
   final _nameController = TextEditingController();
@@ -59,6 +114,7 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
   bool _loading = true;
   bool _showImpedanceTable = false;
   bool _showMeetgegevens = false;
+  bool _showChecklist = true;
 
   List<HoofdschakelaarEntry> _hoofdschakelaars = [];
   int _nextHoofdschakelaarId = 1;
@@ -66,11 +122,29 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
   List<String> _systems = ['TT', 'TN-S', 'TN-C'];
   List<String> _protections = ['B 40 A', 'C 40 A', 'Gl 50 A', 'Gl 63 A'];
   List<String> _protectionClasses = ['IP44', 'IP54'];
-  List<String> _cableTypes = ['NYY', 'NAYY', 'VVG', 'VVGF', 'XGB', 'AXGB', 'FG7', 'H07V-U', 'H07V-R'];
+  List<String> _cableTypes = [
+    'NYY',
+    'NAYY',
+    'VVG',
+    'VVGF',
+    'XGB',
+    'AXGB',
+    'FG7',
+    'H07V-U',
+    'H07V-R',
+  ];
   List<String> _cables = ['6', '10', '16', '25', '35'];
   List<String> _cableLengths = ['25', '50', '100'];
   List<String> _mainSwitchCurrents = [
-    '25', '40', '63', '80', '100', '125', '160', '200', '250'
+    '25',
+    '40',
+    '63',
+    '80',
+    '100',
+    '125',
+    '160',
+    '200',
+    '250',
   ];
   List<String> _mainSwitchPoles = ['1', '2', '3', '4'];
   List<String> _karakteristieken = ['B', 'C', 'D', 'Gg'];
@@ -82,12 +156,26 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
   void initState() {
     super.initState();
     _loadData();
+    _loadShowChecklistPref();
+  }
+
+  Future<void> _loadShowChecklistPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _showChecklist = prefs.getBool(_prefShowChecklist) ?? true;
+    });
   }
 
   Future<void> _loadData() async {
     final sb = await _db.getSwitchboard(widget.switchboardId);
     if (sb == null) {
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      if (widget.onNotFound != null) {
+        widget.onNotFound!();
+      } else {
+        Navigator.pop(context);
+      }
       return;
     }
 
@@ -116,7 +204,8 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
     var hoofdschakelaars = sb.hoofdschakelaars;
     var nextId = 1;
     if (hoofdschakelaars.isNotEmpty) {
-      nextId = hoofdschakelaars.map((e) => e.id).reduce((a, b) => a > b ? a : b) + 1;
+      nextId =
+          hoofdschakelaars.map((e) => e.id).reduce((a, b) => a > b ? a : b) + 1;
     } else if (sb.cableType != null ||
         sb.cableCrossSection != null ||
         sb.cableLength != null ||
@@ -143,8 +232,9 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
       _switchboard = sb;
       _hoofdschakelaars = hoofdschakelaars;
       _nextHoofdschakelaarId = nextId;
-      _showImpedanceTable =
-          sb.electricalMeasurements.values.any((v) => v.isNotEmpty);
+      _showImpedanceTable = sb.electricalMeasurements.values.any(
+        (v) => v.isNotEmpty,
+      );
       if (cableTypeStandards.isNotEmpty) {
         _cableTypes = cableTypeStandards.map((s) => s.value).toList();
       }
@@ -238,7 +328,9 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
       opmerking: _opmerkingController.text,
       hoofdschakelaars: _hoofdschakelaars,
       // Sync first entry back to legacy fields for PDF/XML export.
-      cableType: first?.leidingType.isNotEmpty == true ? first!.leidingType : null,
+      cableType: first?.leidingType.isNotEmpty == true
+          ? first!.leidingType
+          : null,
       cableCrossSection: int.tryParse(first?.leidingDoorsnede ?? ''),
       cableLength: int.tryParse(first?.leidingLengte ?? ''),
       mainSwitchCurrent: int.tryParse(first?.hoofdschakelaar ?? ''),
@@ -250,6 +342,7 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
     );
     await _db.updateSwitchboard(updated);
     _switchboard = updated;
+    widget.onSwitchboardUpdated?.call(updated);
   }
 
   Future<void> _createDefect() async {
@@ -269,10 +362,8 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DefectDetailPage(
-          defectId: id,
-          inspectionId: widget.inspectionId,
-        ),
+        builder: (_) =>
+            DefectDetailPage(defectId: id, inspectionId: widget.inspectionId),
       ),
     );
   }
@@ -292,237 +383,283 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: Text(AppLocalizations.of(context).switchboard)),
-        body: Column(
-          children: [
-            _NavBar(inspectionId: widget.inspectionId),
-            const Expanded(child: Center(child: CircularProgressIndicator())),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final sb = _switchboard!;
     final l10n = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(sb.name.isNotEmpty ? sb.name : l10n.switchboard),
-      ),
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _NavBar(inspectionId: widget.inspectionId),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: CustomDropdown(
+                  label: 'Installatie onderdeel',
+                  value: sb.installationComponent.isEmpty
+                      ? null
+                      : sb.installationComponent,
+                  items: const [
+                    'Verdeler',
+                    'Productielijn',
+                    'Machine',
+                    'Gebouw',
+                    'Verdeler-no break',
+                    'Verdeler-preferent',
+                    'Regelkast',
+                    'Zonnestroom',
+                  ],
+                  onChanged: (v) {
+                    setState(() {
+                      _switchboard = sb.copyWith(
+                        installationComponent: v ?? '',
+                      );
+                    });
+                    _save();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomTextField(
+                  label: l10n.switchboardName,
+                  controller: _nameController,
+                  onChanged: (_) => _save(),
+                ),
+              ),
+            ],
+          ),
+          LocationRow(
+            label: 'Locatie',
+            controller: _locationController,
+            onChanged: (_) => _save(),
+            onPick: _locationOptions.isEmpty ? null : _pickLocation,
+          ),
+          LocationRow(
+            label: 'Locatie A',
+            controller: _locationAController,
+            onChanged: (_) => _save(),
+            onPick: _locationAOptions.isEmpty ? null : _pickLocationA,
+          ),
+          LocationRow(
+            label: 'Locatie B',
+            controller: _locationBController,
+            onChanged: (_) => _save(),
+            onPick: _locationBOptions.isEmpty ? null : _pickLocationB,
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: CustomDropdown(
+                  label: l10n.system,
+                  value: sb.system,
+                  items: _systems,
+                  onChanged: (v) {
+                    setState(() {
+                      _switchboard = sb.copyWith(system: v);
+                    });
+                    _save();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomDropdown(
+                  label: 'Beschermingsklasse',
+                  value: sb.beschermingsklasse.isEmpty
+                      ? null
+                      : sb.beschermingsklasse,
+                  items: const ['I', 'II', 'I/II'],
+                  onChanged: (v) {
+                    setState(() {
+                      _switchboard = sb.copyWith(beschermingsklasse: v ?? '');
+                    });
+                    _save();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomDropdown(
+                  label: l10n.protectionClass,
+                  value: sb.protectionClass,
+                  items: _protectionClasses,
+                  onChanged: (v) {
+                    setState(() {
+                      _switchboard = sb.copyWith(protectionClass: v);
+                    });
+                    _save();
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomTextField(
+                  label: l10n.shortCircuit,
+                  controller: _kortsluitstroomController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => _save(),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+            child: Row(
               children: [
-                Expanded(
-                  child: CustomDropdown(
-                    label: 'Installatie onderdeel',
-                    value: sb.installationComponent.isEmpty ? null : sb.installationComponent,
-                    items: const [
-                      'Verdeler',
-                      'Productielijn',
-                      'Machine',
-                      'Gebouw',
-                      'Verdeler-no break',
-                      'Verdeler-preferent',
-                      'Regelkast',
-                      'Zonnestroom',
-                    ],
-                    onChanged: (v) {
-                      setState(() {
-                        _switchboard = sb.copyWith(installationComponent: v ?? '');
-                      });
-                      _save();
-                    },
+                const Text(
+                  'Hoofdschakelaars',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1976D2),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: l10n.switchboardName,
-                    controller: _nameController,
-                    onChanged: (_) => _save(),
-                  ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.add_circle, color: Color(0xFF1976D2)),
+                  tooltip: 'Hoofdschakelaar toevoegen',
+                  onPressed: () {
+                    setState(() {
+                      _hoofdschakelaars = [
+                        ..._hoofdschakelaars,
+                        HoofdschakelaarEntry(id: _nextHoofdschakelaarId++),
+                      ];
+                    });
+                    _save();
+                  },
                 ),
               ],
             ),
-            LocationRow(
-              label: 'Locatie',
-              controller: _locationController,
-              onChanged: (_) => _save(),
-              onPick: _locationOptions.isEmpty ? null : _pickLocation,
-            ),
-            LocationRow(
-              label: 'Locatie A',
-              controller: _locationAController,
-              onChanged: (_) => _save(),
-              onPick: _locationAOptions.isEmpty ? null : _pickLocationA,
-            ),
-            LocationRow(
-              label: 'Locatie B',
-              controller: _locationBController,
-              onChanged: (_) => _save(),
-              onPick: _locationBOptions.isEmpty ? null : _pickLocationB,
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: CustomDropdown(
-                    label: l10n.system,
-                    value: sb.system,
-                    items: _systems,
-                    onChanged: (v) {
-                      setState(() {
-                        _switchboard = sb.copyWith(system: v);
-                      });
-                      _save();
-                    },
-                  ),
+          ),
+          ..._hoofdschakelaars.asMap().entries.map((mapEntry) {
+            final index = mapEntry.key;
+            final hs = mapEntry.value;
+            return _HoofdschakelaarCard(
+              key: ValueKey(hs.id),
+              index: index,
+              entry: hs,
+              cableTypes: _cableTypes,
+              cableSizes: _cables,
+              cableLengths: _cableLengths,
+              mainSwitchCurrents: _mainSwitchCurrents,
+              mainSwitchPoles: _mainSwitchPoles,
+              karakteristieken: _karakteristieken,
+              protections: _protections,
+              onChanged: (updated) {
+                setState(() {
+                  final list = List<HoofdschakelaarEntry>.from(
+                    _hoofdschakelaars,
+                  );
+                  list[index] = updated;
+                  _hoofdschakelaars = list;
+                });
+                _save();
+              },
+              onDelete: () {
+                setState(() {
+                  final list = List<HoofdschakelaarEntry>.from(
+                    _hoofdschakelaars,
+                  );
+                  list.removeAt(index);
+                  _hoofdschakelaars = list;
+                });
+                _save();
+              },
+            );
+          }),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: PhotoContainer(
+                  label: l10n.photo1,
+                  photoPath: sb.photo1Path,
+                  aspectRatio: 4 / 3,
+                  onPhotoSelected: (path) {
+                    setState(() {
+                      _switchboard = sb.copyWith(photo1Path: path);
+                    });
+                    _save();
+                  },
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomDropdown(
-                    label: 'Beschermingsklasse',
-                    value: sb.beschermingsklasse.isEmpty ? null : sb.beschermingsklasse,
-                    items: const ['I', 'II', 'I/II'],
-                    onChanged: (v) {
-                      setState(() {
-                        _switchboard = sb.copyWith(beschermingsklasse: v ?? '');
-                      });
-                      _save();
-                    },
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: PhotoContainer(
+                  label: l10n.photo2,
+                  photoPath: sb.photo2Path,
+                  aspectRatio: 4 / 3,
+                  onPhotoSelected: (path) {
+                    setState(() {
+                      _switchboard = sb.copyWith(photo2Path: path);
+                    });
+                    _save();
+                  },
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomDropdown(
-                    label: l10n.protectionClass,
-                    value: sb.protectionClass,
-                    items: _protectionClasses,
-                    onChanged: (v) {
-                      setState(() {
-                        _switchboard = sb.copyWith(protectionClass: v);
-                      });
-                      _save();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomTextField(
-                    label: l10n.shortCircuit,
-                    controller: _kortsluitstroomController,
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => _save(),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-              child: Row(
-                children: [
-                  const Text(
-                    'Hoofdschakelaars',
+              ),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Opnemen in PDF-rapport',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: Color(0xFF1976D2),
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: Color(0xFF1976D2)),
-                    tooltip: 'Hoofdschakelaar toevoegen',
-                    onPressed: () {
-                      setState(() {
-                        _hoofdschakelaars = [
-                          ..._hoofdschakelaars,
-                          HoofdschakelaarEntry(id: _nextHoofdschakelaarId++),
-                        ];
-                      });
-                      _save();
-                    },
+                  subtitle: const Text(
+                    'Visuele inspectie en Metingen en beproeving als geheel wel of niet in het rapport opnemen',
+                    style: TextStyle(fontSize: 12),
                   ),
-                ],
+                  value: sb.includeChecklistInPdf,
+                  onChanged: (v) {
+                    setState(() {
+                      _switchboard = sb.copyWith(includeChecklistInPdf: v);
+                    });
+                    _save();
+                  },
+                ),
               ),
-            ),
-            ..._hoofdschakelaars.asMap().entries.map((mapEntry) {
-              final index = mapEntry.key;
-              final hs = mapEntry.value;
-              return _HoofdschakelaarCard(
-                key: ValueKey(hs.id),
-                index: index,
-                entry: hs,
-                cableTypes: _cableTypes,
-                cableSizes: _cables,
-                cableLengths: _cableLengths,
-                mainSwitchCurrents: _mainSwitchCurrents,
-                mainSwitchPoles: _mainSwitchPoles,
-                karakteristieken: _karakteristieken,
-                protections: _protections,
-                onChanged: (updated) {
-                  setState(() {
-                    final list = List<HoofdschakelaarEntry>.from(_hoofdschakelaars);
-                    list[index] = updated;
-                    _hoofdschakelaars = list;
-                  });
-                  _save();
-                },
-                onDelete: () {
-                  setState(() {
-                    final list = List<HoofdschakelaarEntry>.from(_hoofdschakelaars);
-                    list.removeAt(index);
-                    _hoofdschakelaars = list;
-                  });
-                  _save();
-                },
-              );
-            }),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: PhotoContainer(
-                    label: l10n.photo1,
-                    photoPath: sb.photo1Path,
-                    onPhotoSelected: (path) {
-                      setState(() {
-                        _switchboard = sb.copyWith(photo1Path: path);
-                      });
-                      _save();
-                    },
-                  ),
+              IconButton(
+                icon: Icon(
+                  _showChecklist
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: const Color(0xFF1976D2),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: PhotoContainer(
-                    label: l10n.photo2,
-                    photoPath: sb.photo2Path,
-                    onPhotoSelected: (path) {
-                      setState(() {
-                        _switchboard = sb.copyWith(photo2Path: path);
-                      });
-                      _save();
-                    },
-                  ),
-                ),
-              ],
-            ),
+                tooltip: _showChecklist
+                    ? 'Lijst verbergen op scherm'
+                    : 'Lijst tonen op scherm',
+                onPressed: () {
+                  final newValue = !_showChecklist;
+                  setState(() => _showChecklist = newValue);
+                  SharedPreferences.getInstance().then(
+                    (prefs) => prefs.setBool(_prefShowChecklist, newValue),
+                  );
+                },
+              ),
+            ],
+          ),
+          if (_showChecklist) ...[
             _ChecklistHeader(
               title: l10n.visualInspection,
               onSetAll: _setAllVisual,
-              yes: l10n.yes, no: l10n.no, na: l10n.na,
+              yes: l10n.yes,
+              no: l10n.no,
+              na: l10n.na,
             ),
             ...Switchboard.visualInspectionItems.map((item) {
               return ChecklistItem(
@@ -541,7 +678,9 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
             _ChecklistHeader(
               title: l10n.measurements,
               onSetAll: _setAllMeasurements,
-              yes: l10n.yes, no: l10n.no, na: l10n.na,
+              yes: l10n.yes,
+              no: l10n.no,
+              na: l10n.na,
             ),
             ...Switchboard.measurementItems.map((item) {
               return ChecklistItem(
@@ -557,108 +696,107 @@ class _SwitchboardDetailPageState extends State<SwitchboardDetailPage> {
                 },
               );
             }),
-            const SizedBox(height: 8),
-            CustomTextField(
-              label: 'Opmerking',
-              controller: _opmerkingController,
-              maxLines: 3,
-              onChanged: (_) => _save(),
-            ),
-            InkWell(
-              onTap: () => setState(() => _showImpedanceTable = !_showImpedanceTable),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Elektrische metingen',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1976D2),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      _showImpedanceTable
-                          ? Icons.expand_less
-                          : Icons.expand_more,
-                      color: const Color(0xFF1976D2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_showImpedanceTable)
-              _ElectricalMeasurementsTable(
-                data: sb.electricalMeasurements,
-                onChanged: (key, value) {
-                  final updated =
-                      Map<String, String>.from(sb.electricalMeasurements);
-                  updated[key] = value;
-                  setState(() {
-                    _switchboard = sb.copyWith(electricalMeasurements: updated);
-                  });
-                  _save();
-                },
-              ),
-            InkWell(
-              onTap: () => setState(() => _showMeetgegevens = !_showMeetgegevens),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Meetgegevens',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1976D2),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      _showMeetgegevens ? Icons.expand_less : Icons.expand_more,
-                      color: const Color(0xFF1976D2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_showMeetgegevens && sb.id != null)
-              SwitchboardMeasurementsSection(
-                inspectionId: widget.inspectionId,
-                switchboardId: sb.id!,
-              ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _createDefect,
-              icon: const Icon(Icons.warning_amber_outlined),
-              label: const Text('Gebrek aanmaken'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange.shade700,
-                foregroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final navigator = Navigator.of(context);
-                await _save();
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(content: Text(l10n.saved)),
-                );
-                navigator.pop();
-              },
-              child: Text(l10n.save),
-            ),
-            const SizedBox(height: 16),
           ],
-        ),
-      ),
+          const SizedBox(height: 8),
+          CustomTextField(
+            label: 'Opmerking',
+            controller: _opmerkingController,
+            maxLines: 3,
+            onChanged: (_) => _save(),
           ),
+          InkWell(
+            onTap: () =>
+                setState(() => _showImpedanceTable = !_showImpedanceTable),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Elektrische metingen',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _showImpedanceTable ? Icons.expand_less : Icons.expand_more,
+                    color: const Color(0xFF1976D2),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showImpedanceTable)
+            _ElectricalMeasurementsTable(
+              data: sb.electricalMeasurements,
+              onChanged: (key, value) {
+                final updated = Map<String, String>.from(
+                  sb.electricalMeasurements,
+                );
+                updated[key] = value;
+                setState(() {
+                  _switchboard = sb.copyWith(electricalMeasurements: updated);
+                });
+                _save();
+              },
+            ),
+          InkWell(
+            onTap: () => setState(() => _showMeetgegevens = !_showMeetgegevens),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Meetgegevens',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _showMeetgegevens ? Icons.expand_less : Icons.expand_more,
+                    color: const Color(0xFF1976D2),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showMeetgegevens && sb.id != null)
+            SwitchboardMeasurementsSection(
+              inspectionId: widget.inspectionId,
+              switchboardId: sb.id!,
+            ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _createDefect,
+            icon: const Icon(Icons.warning_amber_outlined),
+            label: const Text('Gebrek aanmaken'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              await _save();
+              if (!mounted) return;
+              messenger.showSnackBar(SnackBar(content: Text(l10n.saved)));
+              if (widget.onSavedAndClose != null) {
+                widget.onSavedAndClose!();
+              } else {
+                navigator.pop();
+              }
+            },
+            child: Text(l10n.save),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -678,28 +816,75 @@ class _NavBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _btn(context, Icons.list_outlined, 'Inspecties',
-                () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-                      builder: (_) => HomePage()), (route) => false)),
-            _btn(context, Icons.home_outlined, 'Inspectie',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.electrical_services, 'Verdelers',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.solar_power, 'Zonnestroom',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.warning_amber, 'Gebreken',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => DefectsListPage(inspectionId: inspectionId)))),
+            _btn(
+              context,
+              Icons.list_outlined,
+              'Inspecties',
+              () => Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => HomePage()),
+                (route) => false,
+              ),
+            ),
+            _btn(
+              context,
+              Icons.home_outlined,
+              'Inspectie',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      InspectionMenuPage(inspectionId: inspectionId),
+                ),
+              ),
+            ),
+            _btn(
+              context,
+              Icons.lan,
+              'Verdelers',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SwitchboardsListPage(inspectionId: inspectionId),
+                ),
+              ),
+            ),
+            _btn(
+              context,
+              Icons.solar_power,
+              'Zonnestroom',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SolarInstallationsListPage(inspectionId: inspectionId),
+                ),
+              ),
+            ),
+            _btn(
+              context,
+              Icons.warning_amber,
+              'Gebreken',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DefectsListPage(inspectionId: inspectionId),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _btn(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+  Widget _btn(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -709,7 +894,10 @@ class _NavBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 22, color: const Color(0xFF1976D2)),
-            Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF1976D2))),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF1976D2)),
+            ),
           ],
         ),
       ),
@@ -821,28 +1009,38 @@ class _ElectricalMeasurementsTableState
   // 11 data column keys in left-to-right order
   static const _cols = [
     'l1',
-    'l1_l2', 'l1_l3', 'l1_n', 'l1_pe',
-    'l2_l3', 'l2_n', 'l2_pe',
-    'l3_n', 'l3_pe',
+    'l1_l2',
+    'l1_l3',
+    'l1_n',
+    'l1_pe',
+    'l2_l3',
+    'l2_n',
+    'l2_pe',
+    'l3_n',
+    'l3_pe',
     'n_pe',
   ];
 
   // Group headers (row 1): label + how many sub-columns they span
-  static const _groups = [
-    ('L1', 1),
-    ('L1', 4),
-    ('L2', 3),
-    ('L3', 2),
-    ('N', 1),
-  ];
+  static const _groups = [('L1', 1), ('L1', 4), ('L2', 3), ('L3', 2), ('N', 1)];
 
   // Sub-column labels (row 2), same length as _cols
   static const _subLabels = [
-    '', 'L2', 'L3', 'N', 'Pe', 'L3', 'N', 'Pe', 'N', 'Pe', 'Pe',
+    '',
+    'L2',
+    'L3',
+    'N',
+    'Pe',
+    'L3',
+    'N',
+    'Pe',
+    'N',
+    'Pe',
+    'Pe',
   ];
 
   // Which columns are active per row (null = all active)
-  static const _activeI    = [0];           // only L1
+  static const _activeI = [0]; // only L1
   static const _activeRiso = [4, 7, 9, 10]; // L1-Pe, L2-Pe, L3-Pe, N-Pe
 
   final Map<String, TextEditingController> _ctrl = {};
@@ -853,11 +1051,11 @@ class _ElectricalMeasurementsTableState
   void initState() {
     super.initState();
     _zcirUnit = widget.data['zcir_unit'] ?? 'Ω';
-    _ikUnit   = widget.data['ik_unit'] ?? 'kA';
-    _buildControllers('un',   null);
+    _ikUnit = widget.data['ik_unit'] ?? 'kA';
+    _buildControllers('un', null);
     _buildControllers('zcir', null);
-    _buildControllers('ik',   null);
-    _buildControllers('i',    _activeI);
+    _buildControllers('ik', null);
+    _buildControllers('i', _activeI);
     _buildControllers('riso', _activeRiso);
   }
 
@@ -893,8 +1091,7 @@ class _ElectricalMeasurementsTableState
           ? null
           : Text(
               text,
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
     );
@@ -919,8 +1116,10 @@ class _ElectricalMeasurementsTableState
       ),
       child: TextField(
         controller: _ctrl[key],
-        keyboardType:
-            const TextInputType.numberWithOptions(decimal: true, signed: true),
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
         textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 12),
         decoration: const InputDecoration(
@@ -934,17 +1133,19 @@ class _ElectricalMeasurementsTableState
   }
 
   Widget _labelCell(String text) => Container(
-        width: _labelW,
-        height: _rowH,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        alignment: Alignment.centerLeft,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE3F2FD),
-          border: Border.all(color: Colors.grey.shade400, width: 0.5),
-        ),
-        child: Text(text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-      );
+    width: _labelW,
+    height: _rowH,
+    padding: const EdgeInsets.symmetric(horizontal: 6),
+    alignment: Alignment.centerLeft,
+    decoration: BoxDecoration(
+      color: const Color(0xFFE3F2FD),
+      border: Border.all(color: Colors.grey.shade400, width: 0.5),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+    ),
+  );
 
   Widget _labelCellWithUnit(
     String text,
@@ -952,49 +1153,47 @@ class _ElectricalMeasurementsTableState
     String currentUnit,
     List<String> units,
     void Function(String) onUnitChanged,
-  ) =>
-      Container(
-        width: _labelW,
-        height: _rowH,
-        padding: const EdgeInsets.only(left: 6, right: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE3F2FD),
-          border: Border.all(color: Colors.grey.shade400, width: 0.5),
+  ) => Container(
+    width: _labelW,
+    height: _rowH,
+    padding: const EdgeInsets.only(left: 6, right: 2),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE3F2FD),
+      border: Border.all(color: Colors.grey.shade400, width: 0.5),
+    ),
+    child: Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
-        child: Row(
-          children: [
-            Text(text,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w500)),
-            const Spacer(),
-            DropdownButton<String>(
-              value: currentUnit,
-              isDense: true,
-              underline: const SizedBox(),
-              style: const TextStyle(fontSize: 10, color: Colors.black87),
-              icon: const Icon(Icons.arrow_drop_down, size: 14),
-              items: units
-                  .map((u) =>
-                      DropdownMenuItem(value: u, child: Text(u)))
-                  .toList(),
-              onChanged: (v) {
-                if (v == null) return;
-                onUnitChanged(v);
-                widget.onChanged(unitKey, v);
-              },
-            ),
-          ],
+        const Spacer(),
+        DropdownButton<String>(
+          value: currentUnit,
+          isDense: true,
+          underline: const SizedBox(),
+          style: const TextStyle(fontSize: 10, color: Colors.black87),
+          icon: const Icon(Icons.arrow_drop_down, size: 14),
+          items: units
+              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+              .toList(),
+          onChanged: (v) {
+            if (v == null) return;
+            onUnitChanged(v);
+            widget.onChanged(unitKey, v);
+          },
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _dataRow(String label, String prefix, List<int>? active) => Row(
-        children: [
-          _labelCell(label),
-          for (var i = 0; i < _cols.length; i++)
-            _cell('${prefix}_${_cols[i]}',
-                active == null || active.contains(i)),
-        ],
-      );
+    children: [
+      _labelCell(label),
+      for (var i = 0; i < _cols.length; i++)
+        _cell('${prefix}_${_cols[i]}', active == null || active.contains(i)),
+    ],
+  );
 
   Widget _dataRowWithUnit(
     String label,
@@ -1003,15 +1202,13 @@ class _ElectricalMeasurementsTableState
     String currentUnit,
     List<String> units,
     void Function(String) onUnitChanged,
-  ) =>
-      Row(
-        children: [
-          _labelCellWithUnit(
-              label, unitKey, currentUnit, units, onUnitChanged),
-          for (var i = 0; i < _cols.length; i++)
-            _cell('${prefix}_${_cols[i]}', true),
-        ],
-      );
+  ) => Row(
+    children: [
+      _labelCellWithUnit(label, unitKey, currentUnit, units, onUnitChanged),
+      for (var i = 0; i < _cols.length; i++)
+        _cell('${prefix}_${_cols[i]}', true),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1021,34 +1218,30 @@ class _ElectricalMeasurementsTableState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header row 1: group labels
-          Row(children: [
-            _hdrCell('', width: _labelW),
-            for (final g in _groups)
-              _hdrCell(g.$1, width: g.$2 * _cellW),
-          ]),
+          Row(
+            children: [
+              _hdrCell('', width: _labelW),
+              for (final g in _groups) _hdrCell(g.$1, width: g.$2 * _cellW),
+            ],
+          ),
           // Header row 2: sub-column labels
-          Row(children: [
-            _hdrCell('', width: _labelW),
-            for (final s in _subLabels) _hdrCell(s),
-          ]),
+          Row(
+            children: [
+              _hdrCell('', width: _labelW),
+              for (final s in _subLabels) _hdrCell(s),
+            ],
+          ),
           // Data rows
           _dataRow('Un (V)', 'un', null),
-          _dataRowWithUnit(
-            'Zcir',
-            'zcir',
-            'zcir_unit',
-            _zcirUnit,
-            const ['Ω', 'mΩ', 'kΩ'],
-            (v) => setState(() => _zcirUnit = v),
-          ),
-          _dataRowWithUnit(
-            'Ik',
-            'ik',
-            'ik_unit',
-            _ikUnit,
-            const ['kA', 'A'],
-            (v) => setState(() => _ikUnit = v),
-          ),
+          _dataRowWithUnit('Zcir', 'zcir', 'zcir_unit', _zcirUnit, const [
+            'Ω',
+            'mΩ',
+            'kΩ',
+          ], (v) => setState(() => _zcirUnit = v)),
+          _dataRowWithUnit('Ik', 'ik', 'ik_unit', _ikUnit, const [
+            'kA',
+            'A',
+          ], (v) => setState(() => _ikUnit = v)),
           _dataRow('I (A)', 'i', _activeI),
           _dataRow('Riso (MΩ)', 'riso', _activeRiso),
         ],
@@ -1142,36 +1335,48 @@ class _HoofdschakelaarCardState extends State<_HoofdschakelaarCard> {
                   flex: 2,
                   child: CustomDropdown(
                     label: 'Leiding type',
-                    value: _entry.leidingType.isEmpty ? null : _entry.leidingType,
+                    value: _entry.leidingType.isEmpty
+                        ? null
+                        : _entry.leidingType,
                     items: widget.cableTypes,
-                    onChanged: (v) => _update(_entry.copyWith(leidingType: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(leidingType: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: CustomDropdown(
                     label: 'Doorsnede (mm²)',
-                    value: _entry.leidingDoorsnede.isEmpty ? null : _entry.leidingDoorsnede,
+                    value: _entry.leidingDoorsnede.isEmpty
+                        ? null
+                        : _entry.leidingDoorsnede,
                     items: widget.cableSizes,
-                    onChanged: (v) => _update(_entry.copyWith(leidingDoorsnede: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(leidingDoorsnede: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: CustomDropdown(
                     label: 'Aders',
-                    value: _entry.leidingAders.isEmpty ? null : _entry.leidingAders,
+                    value: _entry.leidingAders.isEmpty
+                        ? null
+                        : _entry.leidingAders,
                     items: const ['1', '2', '3', '4', '5'],
-                    onChanged: (v) => _update(_entry.copyWith(leidingAders: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(leidingAders: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: CustomDropdown(
                     label: 'Lengte (m)',
-                    value: _entry.leidingLengte.isEmpty ? null : _entry.leidingLengte,
+                    value: _entry.leidingLengte.isEmpty
+                        ? null
+                        : _entry.leidingLengte,
                     items: widget.cableLengths,
-                    onChanged: (v) => _update(_entry.copyWith(leidingLengte: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(leidingLengte: v ?? '')),
                   ),
                 ),
               ],
@@ -1184,27 +1389,36 @@ class _HoofdschakelaarCardState extends State<_HoofdschakelaarCard> {
                   flex: 2,
                   child: CustomDropdown(
                     label: 'Hoofdschakelaar (A)',
-                    value: _entry.hoofdschakelaar.isEmpty ? null : _entry.hoofdschakelaar,
+                    value: _entry.hoofdschakelaar.isEmpty
+                        ? null
+                        : _entry.hoofdschakelaar,
                     items: widget.mainSwitchCurrents,
-                    onChanged: (v) => _update(_entry.copyWith(hoofdschakelaar: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(hoofdschakelaar: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: CustomDropdown(
                     label: 'Aantal Polen',
-                    value: _entry.aantalPolen.isEmpty ? null : _entry.aantalPolen,
+                    value: _entry.aantalPolen.isEmpty
+                        ? null
+                        : _entry.aantalPolen,
                     items: widget.mainSwitchPoles,
-                    onChanged: (v) => _update(_entry.copyWith(aantalPolen: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(aantalPolen: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: CustomDropdown(
                     label: 'Karakteristiek',
-                    value: _entry.karakteristiek.isEmpty ? null : _entry.karakteristiek,
+                    value: _entry.karakteristiek.isEmpty
+                        ? null
+                        : _entry.karakteristiek,
                     items: widget.karakteristieken,
-                    onChanged: (v) => _update(_entry.copyWith(karakteristiek: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(karakteristiek: v ?? '')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1212,9 +1426,12 @@ class _HoofdschakelaarCardState extends State<_HoofdschakelaarCard> {
                   flex: 2,
                   child: CustomDropdown(
                     label: 'Voorbeveiliging',
-                    value: _entry.voorbeveiliging.isEmpty ? null : _entry.voorbeveiliging,
+                    value: _entry.voorbeveiliging.isEmpty
+                        ? null
+                        : _entry.voorbeveiliging,
                     items: widget.protections,
-                    onChanged: (v) => _update(_entry.copyWith(voorbeveiliging: v ?? '')),
+                    onChanged: (v) =>
+                        _update(_entry.copyWith(voorbeveiliging: v ?? '')),
                   ),
                 ),
               ],

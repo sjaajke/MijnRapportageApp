@@ -28,6 +28,7 @@ class CustomTextField extends StatelessWidget {
   final bool readOnly;
   final VoidCallback? onTap;
   final VoidCallback? onClear;
+  final bool expands;
 
   const CustomTextField({
     super.key,
@@ -41,20 +42,22 @@ class CustomTextField extends StatelessWidget {
     this.readOnly = false,
     this.onTap,
     this.onClear,
+    this.expands = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final multiline = expands || maxLines > 1;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: TextFormField(
         controller: controller,
         onChanged: onChanged,
-        maxLines: maxLines,
-        keyboardType: maxLines > 1 ? TextInputType.multiline : keyboardType,
-        textInputAction: maxLines > 1
-            ? TextInputAction.newline
-            : TextInputAction.next,
+        maxLines: expands ? null : maxLines,
+        expands: expands,
+        keyboardType: multiline ? TextInputType.multiline : keyboardType,
+        textInputAction:
+            multiline ? TextInputAction.newline : TextInputAction.next,
         readOnly: readOnly,
         onTap: onTap,
         validator: validator,
@@ -62,6 +65,7 @@ class CustomTextField extends StatelessWidget {
           labelText: label,
           hintText: hint,
           border: const OutlineInputBorder(),
+          alignLabelWithHint: expands,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
           suffixIcon: onClear != null && (controller?.text.isNotEmpty ?? false)

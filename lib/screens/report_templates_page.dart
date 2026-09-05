@@ -88,8 +88,37 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
     await _load();
   }
 
+  Future<void> _deleteAllTemplates() async {
+    final l10n = AppLocalizations.of(context);
+    if (_templates.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.deleteAllReportTemplatesTitle),
+        content: Text(l10n.deleteAllReportTemplatesConfirm(_templates.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _db.deleteAllReportTemplates();
+    await _load();
+  }
+
   Future<void> _pickAndImport() async {
-    const xlsxType = XTypeGroup(label: 'Excel', extensions: ['xlsx']);
+    const xlsxType = XTypeGroup(
+      label: 'Excel',
+      extensions: ['xlsx'],
+      uniformTypeIdentifiers: ['org.openxmlformats.spreadsheetml.sheet'],
+    );
     final file = await openFile(acceptedTypeGroups: [xlsxType]);
     if (file == null) return;
     await _runImport(file.path);
@@ -139,6 +168,7 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
           subtitel: cell(row, 'Subtitel'),
           inleiding: cell(row, 'Inleiding'),
           tekstRapportVerklaring: cell(row, 'Eindbeoordeling'),
+          herstelVerklaring: cell(row, 'Herstelverklaring'),
           visueleInspectieTitel: cell(row, 'Visuele inspectie Titel'),
           visueleInspectie: cell(row, 'Visuele inspectie'),
           visueleInspectieToelichting:
@@ -161,6 +191,8 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
           elektrischMaterieelGetoetst:
               cell(row, 'Het elektrisch materieel is getoets aan'),
           inleidingToelichting: cell(row, 'Toelichting'),
+          meldingGevaarlijkeSituatie:
+              cell(row, 'Melding gevaarlijke situatie'),
         );
 
         final wasInserted = await _db.upsertReportTemplateByType(template);
@@ -225,6 +257,12 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
               icon: const Icon(Icons.upload_file),
               tooltip: 'Importeer Excel',
               onPressed: _pickAndImport,
+            ),
+          if (_templates.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: l10n.deleteAllReportTemplates,
+              onPressed: _deleteAllTemplates,
             ),
         ],
       ),

@@ -132,6 +132,12 @@ class AppLocalizations {
       ? 'Weet u zeker dat u deze inspectie wilt afronden?'
       : 'Are you sure you want to complete this inspection?';
   String get complete => isNl ? 'Afronden' : 'Complete';
+  String get reopenInspectionButton =>
+      isNl ? 'Terug naar Concept' : 'Reopen as Draft';
+  String get reopenInspectionConfirm => isNl
+      ? 'Weet u zeker dat u deze inspectie weer in concept wilt plaatsen?'
+      : 'Are you sure you want to set this inspection back to draft?';
+  String get reopen => isNl ? 'Terugzetten' : 'Reopen';
 
   // ── General data page ──────────────────────────────────────────────────────
 
@@ -238,6 +244,7 @@ class AppLocalizations {
   String get reportSubtitle => isNl ? 'Subtitel' : 'Subtitle';
   String get reportIntroduction => isNl ? 'Inleiding' : 'Introduction';
   String get reportDeclaration => isNl ? 'Eindbeoordeling' : 'Final assessment';
+  String get herstelVerklaring => isNl ? 'Herstelverklaring' : 'Repair declaration';
   String get visualInspectionTitle =>
       isNl ? 'Visuele inspectie - Titel' : 'Visual inspection - Title';
   String get visualInspectionText =>
@@ -271,6 +278,13 @@ class AppLocalizations {
   String deleteReportTemplateConfirm(String name) => isNl
       ? 'Weet u zeker dat u "$name" wilt verwijderen?'
       : 'Are you sure you want to delete "$name"?';
+  String get deleteAllReportTemplates =>
+      isNl ? 'Alles verwijderen' : 'Delete all';
+  String get deleteAllReportTemplatesTitle =>
+      isNl ? 'Alle rapport teksten verwijderen' : 'Delete all report texts';
+  String deleteAllReportTemplatesConfirm(int count) => isNl
+      ? 'Weet u zeker dat u alle $count rapport teksten wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
+      : 'Are you sure you want to delete all $count report texts? This cannot be undone.';
   String get generalSection => isNl ? 'Algemeen' : 'General';
   String get introductionSection =>
       isNl ? 'Inleiding en verklaring' : 'Introduction and declaration';
@@ -324,6 +338,8 @@ class AppLocalizations {
   String get catInspectionReason =>
       isNl ? 'Reden voor inspectie' : 'Reason for inspection';
   String get catKarakteristiek => isNl ? 'Karakteristiek' : 'Characteristic';
+  String get catInverter => isNl ? 'Omvormer' : 'Inverter';
+  String get catPanel => isNl ? 'Paneel' : 'Panel';
   String addCategory(String label) => isNl ? '$label toevoegen' : 'Add $label';
   String editCategory(String label) => isNl ? '$label wijzigen' : 'Edit $label';
   String get value => isNl ? 'Waarde' : 'Value';
@@ -334,6 +350,40 @@ class AppLocalizations {
   String deleteItemConfirm(String itemName) => isNl
       ? 'Weet u zeker dat u "$itemName" wilt verwijderen?'
       : 'Are you sure you want to delete "$itemName"?';
+  String get deleteAllStandards => isNl ? 'Alles verwijderen' : 'Delete all';
+  String deleteAllStandardsTitle(String label) => isNl
+      ? 'Alle items in $label verwijderen'
+      : 'Delete all items in $label';
+  String deleteAllStandardsConfirm(int count, String label) => isNl
+      ? 'Weet u zeker dat u alle $count items in $label wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
+      : 'Are you sure you want to delete all $count items in $label? This cannot be undone.';
+  String get deleteAllStandardsEverywhere =>
+      isNl ? 'Alle categorieën leegmaken' : 'Clear all categories';
+  String get deleteAllStandardsEverywhereTitle =>
+      isNl ? 'Alle standaarden verwijderen' : 'Delete all standards';
+  String deleteAllStandardsEverywhereConfirm(int count) => isNl
+      ? 'Weet u zeker dat u alle $count standaarden in alle categorieën wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
+      : 'Are you sure you want to delete all $count standards across all categories? This cannot be undone.';
+  String get exportToExcel => isNl ? 'Exporteren naar Excel' : 'Export to Excel';
+  String get importFromExcel => isNl ? 'Importeren uit Excel' : 'Import from Excel';
+  String get importComplete => isNl ? 'Import voltooid' : 'Import complete';
+  String importResult(int inserted, int updated, int skipped) {
+    if (isNl) {
+      var text = '$inserted nieuw toegevoegd\n$updated bijgewerkt';
+      if (skipped > 0) {
+        text += '\n$skipped overgeslagen (onbekende categorie)';
+      }
+      return text;
+    }
+    var text = '$inserted added\n$updated updated';
+    if (skipped > 0) text += '\n$skipped skipped (unknown category)';
+    return text;
+  }
+  String get selectXlsxFile =>
+      isNl ? 'Selecteer een .xlsx-bestand.' : 'Select an .xlsx file.';
+  String get dropXlsxHere => isNl
+      ? 'Laat het bestand los om te importeren'
+      : 'Drop the file here to import';
 
   // ── Switchboards list page ─────────────────────────────────────────────────
 
@@ -396,6 +446,11 @@ class AppLocalizations {
       : 'Are you sure you want to delete the selected defects? This cannot be undone.';
   String selectedCount(int count) =>
       isNl ? '$count geselecteerd' : '$count selected';
+  String get sortDefects => isNl ? 'Sorteren' : 'Sort';
+  String get sortByManual =>
+      isNl ? 'Zoals ingevoerd/versleept' : 'As entered/dragged';
+  String get sortByClassification =>
+      isNl ? 'Op classificatie' : 'By classification';
 
   // ── Defect detail page ─────────────────────────────────────────────────────
 
@@ -475,6 +530,7 @@ class AppLocalizations {
       isNl ? 'Gegevens opgehaald voor $address.' : 'Data fetched for $address.';
   String get gebruiksoppervlakte =>
       isNl ? 'Gebruiksoppervlakte (m²)' : 'Usable floor area (m²)';
+  String get gebouwhoogte => isNl ? 'Gebouwhoogte (m)' : 'Building height (m)';
   String get methodeVisueleInspectie =>
       isNl ? 'Visuele inspectie' : 'Visual inspection';
   String get methodeMetingen =>

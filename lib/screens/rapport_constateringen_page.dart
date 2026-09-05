@@ -342,10 +342,40 @@ class _RapportConstateringenPageState
     await _load();
   }
 
+  Future<void> _deleteAll() async {
+    if (_items.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Alles verwijderen'),
+        content: Text(
+            'Wil je alle ${_items.length} constateringen verwijderen? Dit kan niet ongedaan worden gemaakt.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuleren'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Alles verwijderen',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _db.deleteAllRapportConstateringen();
+    await _load();
+  }
+
   // ── Excel import ───────────────────────────────────────────────────────────
 
   Future<void> _pickAndImport() async {
-    const xlsxType = XTypeGroup(label: 'Excel', extensions: ['xlsx']);
+    const xlsxType = XTypeGroup(
+      label: 'Excel',
+      extensions: ['xlsx'],
+      uniformTypeIdentifiers: ['org.openxmlformats.spreadsheetml.sheet'],
+    );
     final file = await openFile(acceptedTypeGroups: [xlsxType]);
     if (file == null) return;
     await _runImport(file.path);
@@ -500,6 +530,22 @@ class _RapportConstateringenPageState
                 tooltip: 'Importeer Excel',
                 onPressed: _pickAndImport,
               ),
+            PopupMenuButton<void>(
+              tooltip: 'Meer opties',
+              itemBuilder: (ctx) => [
+                PopupMenuItem(
+                  onTap: _items.isEmpty ? null : _deleteAll,
+                  enabled: _items.isNotEmpty,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Alles verwijderen'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
       ),
