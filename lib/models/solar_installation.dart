@@ -169,6 +169,10 @@ class SolarInstallation {
     String? photoRoof2Path,
     String? photoInverter1Path,
     String? photoInverter2Path,
+    bool clearPhotoRoof1Path = false,
+    bool clearPhotoRoof2Path = false,
+    bool clearPhotoInverter1Path = false,
+    bool clearPhotoInverter2Path = false,
   }) {
     return SolarInstallation(
       id: id ?? this.id,
@@ -194,10 +198,16 @@ class SolarInstallation {
       constructionDeclaration:
           constructionDeclaration ?? this.constructionDeclaration,
       installationData: installationData ?? this.installationData,
-      photoRoof1Path: photoRoof1Path ?? this.photoRoof1Path,
-      photoRoof2Path: photoRoof2Path ?? this.photoRoof2Path,
-      photoInverter1Path: photoInverter1Path ?? this.photoInverter1Path,
-      photoInverter2Path: photoInverter2Path ?? this.photoInverter2Path,
+      photoRoof1Path:
+          clearPhotoRoof1Path ? null : (photoRoof1Path ?? this.photoRoof1Path),
+      photoRoof2Path:
+          clearPhotoRoof2Path ? null : (photoRoof2Path ?? this.photoRoof2Path),
+      photoInverter1Path: clearPhotoInverter1Path
+          ? null
+          : (photoInverter1Path ?? this.photoInverter1Path),
+      photoInverter2Path: clearPhotoInverter2Path
+          ? null
+          : (photoInverter2Path ?? this.photoInverter2Path),
     );
   }
 }

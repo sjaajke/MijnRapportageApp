@@ -171,7 +171,8 @@ class _DefectDetailViewState extends State<DefectDetailView> {
           .where((s) => s.name.isNotEmpty)
           .map((s) => (component: s.installationComponent, name: s.name))
           .toList();
-      _defectNumber = idx >= 0 ? idx + 1 : 1;
+      _defectNumber =
+          idx >= 0 ? (allDefects[idx].defectNumber ?? idx + 1) : 1;
       _loading = false;
     });
   }
@@ -293,6 +294,50 @@ class _DefectDetailViewState extends State<DefectDetailView> {
     widget.onDefectUpdated?.call(updated);
   }
 
+  Future<void> _removePhoto(int photoNumber) async {
+    final defect = _defect;
+    if (defect == null) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removePhoto),
+        content: Text(l10n.removePhotoConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final photoPath =
+        photoNumber == 1 ? defect.photo1Path : defect.photo2Path;
+    final updated = defect.copyWith(
+      clearPhoto1Path: photoNumber == 1,
+      clearPhoto2Path: photoNumber == 2,
+    );
+    await _db.deleteAnnotationsForPhoto(defect.id!, photoNumber);
+    await _db.updateDefect(updated);
+    if (photoPath != null) {
+      final file = File(photoPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _defect = updated;
+    });
+    widget.onDefectUpdated?.call(updated);
+  }
+
   @override
   void dispose() {
     _save();
@@ -354,6 +399,7 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                       'Verdeler-preferent',
                       'Regelkast',
                       'Zonnestroom',
+                      'Omvormer',
                     ],
                     onChanged: (v) {
                       setState(() {
@@ -467,6 +513,7 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto(1),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -484,6 +531,7 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto(2),
                   ),
                 ),
               ],
@@ -535,16 +583,28 @@ class _DefectDetailViewState extends State<DefectDetailView> {
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MeldingGevaarlijkeSituatiePage(
-                        inspectionId: widget.inspectionId,
-                        defect: defect,
-                        defectNumber: _defectNumber,
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MeldingGevaarlijkeSituatiePage(
+                          inspectionId: widget.inspectionId,
+                          defect: defect,
+                          defectNumber: _defectNumber,
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                    // De melding-pagina slaat naam/handtekening klant direct
+                    // op in de database; ververs onze eigen kopie zodat een
+                    // volgende _save() (bv. via dispose) die gegevens niet
+                    // overschrijft met de verouderde staat van vóór het
+                    // bezoek aan die pagina.
+                    if (!mounted) return;
+                    final refreshed = await _db.getDefect(widget.defectId);
+                    if (refreshed != null && mounted) {
+                      setState(() => _defect = refreshed);
+                    }
+                  },
                 ),
               ),
             ],
@@ -1030,6 +1090,7 @@ class _AnnotatablePhoto extends StatefulWidget {
   final int photoNumber;
   final String classification;
   final ValueChanged<String> onPhotoSelected;
+  final VoidCallback? onPhotoRemoved;
   final double? aspectRatio;
 
   const _AnnotatablePhoto({
@@ -1039,6 +1100,7 @@ class _AnnotatablePhoto extends StatefulWidget {
     required this.photoNumber,
     required this.classification,
     required this.onPhotoSelected,
+    this.onPhotoRemoved,
     this.aspectRatio,
   });
 
@@ -1184,6 +1246,17 @@ class _AnnotatablePhotoState extends State<_AnnotatablePhoto> {
                 if (annotationCount > 0) ...[
                   const SizedBox(width: 8),
                   Icon(Icons.check_circle, size: 16, color: classColor),
+                ],
+                if (widget.onPhotoRemoved != null) ...[
+                  const Spacer(),
+                  IconButton(
+                    onPressed: widget.onPhotoRemoved,
+                    icon: const Icon(Icons.delete_outline,
+                        size: 20, color: Colors.red),
+                    tooltip: l10n.delete,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ],
               ],
             ),

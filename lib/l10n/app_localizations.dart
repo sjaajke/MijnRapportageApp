@@ -72,11 +72,9 @@ class AppLocalizations {
   String get shareSampleText =>
       isNl ? 'Voorbeeld Inspectie PDF' : 'Sample Inspection PDF';
   String get language => isNl ? 'Taal' : 'Language';
-  String get duplicateInspection =>
-      isNl ? 'Dupliceren' : 'Duplicate';
-  String get duplicateInspectionFailed => isNl
-      ? 'Dupliceren mislukt'
-      : 'Duplicating failed';
+  String get duplicateInspection => isNl ? 'Dupliceren' : 'Duplicate';
+  String get duplicateInspectionFailed =>
+      isNl ? 'Dupliceren mislukt' : 'Duplicating failed';
   String get copySuffix => isNl ? ' (kopie)' : ' (copy)';
 
   // ── Inspection menu page ───────────────────────────────────────────────────
@@ -146,6 +144,9 @@ class AppLocalizations {
   String get address => isNl ? 'Adres' : 'Address';
   String get postalCity => isNl ? 'Postcode Plaats' : 'Postal Code City';
   String get contactPerson => isNl ? 'Contactpersoon' : 'Contact Person';
+  String get finalResponsible =>
+      isNl ? 'Eindverantwoordelijke' : 'Final Responsible';
+  String get author => isNl ? 'Auteur' : 'Author';
   String get phoneNumber => isNl ? 'Telefoonnummer' : 'Phone Number';
   String get installationResponsible =>
       isNl ? 'Installatieverantwoordelijke' : 'Installation Responsible';
@@ -235,6 +236,32 @@ class AppLocalizations {
   String get registrationNumber =>
       isNl ? 'Registratienummer' : 'Registration number';
   String get instrumentStatus => isNl ? 'Status' : 'Status';
+  String companyImportResult({
+    required bool companyInfoUpdated,
+    required int inspectorsInserted,
+    required int inspectorsUpdated,
+    required int instrumentsInserted,
+    required int instrumentsUpdated,
+  }) {
+    if (isNl) {
+      final lines = <String>[
+        companyInfoUpdated
+            ? 'Bedrijfsinformatie bijgewerkt'
+            : 'Bedrijfsinformatie niet gewijzigd',
+        '$inspectorsInserted inspecteur(s) toegevoegd, $inspectorsUpdated bijgewerkt',
+        '$instrumentsInserted meetinstrument(en) toegevoegd, $instrumentsUpdated bijgewerkt',
+      ];
+      return lines.join('\n');
+    }
+    final lines = <String>[
+      companyInfoUpdated
+          ? 'Company information updated'
+          : 'Company information unchanged',
+      '$inspectorsInserted inspector(s) added, $inspectorsUpdated updated',
+      '$instrumentsInserted measuring instrument(s) added, $instrumentsUpdated updated',
+    ];
+    return lines.join('\n');
+  }
 
   // ── Report templates page ──────────────────────────────────────────────────
 
@@ -244,7 +271,8 @@ class AppLocalizations {
   String get reportSubtitle => isNl ? 'Subtitel' : 'Subtitle';
   String get reportIntroduction => isNl ? 'Inleiding' : 'Introduction';
   String get reportDeclaration => isNl ? 'Eindbeoordeling' : 'Final assessment';
-  String get herstelVerklaring => isNl ? 'Herstelverklaring' : 'Repair declaration';
+  String get herstelVerklaring =>
+      isNl ? 'Herstelverklaring' : 'Repair declaration';
   String get visualInspectionTitle =>
       isNl ? 'Visuele inspectie - Titel' : 'Visual inspection - Title';
   String get visualInspectionText =>
@@ -340,6 +368,10 @@ class AppLocalizations {
   String get catKarakteristiek => isNl ? 'Karakteristiek' : 'Characteristic';
   String get catInverter => isNl ? 'Omvormer' : 'Inverter';
   String get catPanel => isNl ? 'Paneel' : 'Panel';
+  String get catInspectionScope =>
+      isNl ? 'Inspectie omvang' : 'Inspection scope';
+  String get catInspectionTermBasis =>
+      isNl ? 'Inspectie termijn volgens' : 'Inspection term according to';
   String addCategory(String label) => isNl ? '$label toevoegen' : 'Add $label';
   String editCategory(String label) => isNl ? '$label wijzigen' : 'Edit $label';
   String get value => isNl ? 'Waarde' : 'Value';
@@ -351,9 +383,8 @@ class AppLocalizations {
       ? 'Weet u zeker dat u "$itemName" wilt verwijderen?'
       : 'Are you sure you want to delete "$itemName"?';
   String get deleteAllStandards => isNl ? 'Alles verwijderen' : 'Delete all';
-  String deleteAllStandardsTitle(String label) => isNl
-      ? 'Alle items in $label verwijderen'
-      : 'Delete all items in $label';
+  String deleteAllStandardsTitle(String label) =>
+      isNl ? 'Alle items in $label verwijderen' : 'Delete all items in $label';
   String deleteAllStandardsConfirm(int count, String label) => isNl
       ? 'Weet u zeker dat u alle $count items in $label wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
       : 'Are you sure you want to delete all $count items in $label? This cannot be undone.';
@@ -364,8 +395,10 @@ class AppLocalizations {
   String deleteAllStandardsEverywhereConfirm(int count) => isNl
       ? 'Weet u zeker dat u alle $count standaarden in alle categorieën wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
       : 'Are you sure you want to delete all $count standards across all categories? This cannot be undone.';
-  String get exportToExcel => isNl ? 'Exporteren naar Excel' : 'Export to Excel';
-  String get importFromExcel => isNl ? 'Importeren uit Excel' : 'Import from Excel';
+  String get exportToExcel =>
+      isNl ? 'Exporteren naar Excel' : 'Export to Excel';
+  String get importFromExcel =>
+      isNl ? 'Importeren uit Excel' : 'Import from Excel';
   String get importComplete => isNl ? 'Import voltooid' : 'Import complete';
   String importResult(int inserted, int updated, int skipped) {
     if (isNl) {
@@ -379,6 +412,7 @@ class AppLocalizations {
     if (skipped > 0) text += '\n$skipped skipped (unknown category)';
     return text;
   }
+
   String get selectXlsxFile =>
       isNl ? 'Selecteer een .xlsx-bestand.' : 'Select an .xlsx file.';
   String get dropXlsxHere => isNl
@@ -465,6 +499,13 @@ class AppLocalizations {
   String annotationsCount(int count) =>
       isNl ? 'Annotaties ($count)' : 'Annotations ($count)';
   String get annotatePhoto => isNl ? 'Annoteer foto' : 'Annotate photo';
+  String get removePhoto => isNl ? 'Foto verwijderen' : 'Remove photo';
+  String get removePhotoConfirm => isNl
+      ? 'Weet je zeker dat je deze foto en de bijbehorende annotaties wilt verwijderen?'
+      : 'Are you sure you want to remove this photo and its annotations?';
+  String get removePhotoSimpleConfirm => isNl
+      ? 'Weet je zeker dat je deze foto wilt verwijderen?'
+      : 'Are you sure you want to remove this photo?';
 
   // ── Switchboard detail page ────────────────────────────────────────────────
 
@@ -501,7 +542,7 @@ class AppLocalizations {
   String get numberOfInverters =>
       isNl ? 'Aantal omvormers' : 'Number of inverters';
   String get wattPeak => isNl ? 'WattPiek vermogen' : 'Watt peak power';
-  String get constructionType => isNl ? 'Bouwvorm' : 'Installation type';
+  String get constructionType => isNl ? 'Bouwjaar' : 'Construction year';
   String get photos => isNl ? "Foto's" : 'Photos';
   String get roofSetup1 => isNl ? 'Dakopstelling 1' : 'Roof setup 1';
   String get roofSetup2 => isNl ? 'Dakopstelling 2' : 'Roof setup 2';
@@ -542,6 +583,8 @@ class AppLocalizations {
   String get scope => isNl ? 'Omvang' : 'Scope';
   String get scopeDescription =>
       isNl ? 'Omschrijving van de inspectie' : 'Description of the inspection';
+  String get chooseFromStandards =>
+      isNl ? 'Kies uit standaarden' : 'Choose from standards';
   String get notInspected => isNl
       ? 'Welke installatie(delen) zijn niet geïnspecteerd'
       : 'Which installation parts were not inspected';

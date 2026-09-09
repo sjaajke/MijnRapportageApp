@@ -15,7 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../models/defect.dart';
 import '../models/solar_inverter.dart';
 import '../models/solar_string_measurement.dart';
 import '../models/standard.dart';
@@ -30,6 +33,7 @@ import 'home_page.dart';
 import 'inspection_menu_page.dart';
 import 'switchboards_list_page.dart';
 import 'solar_installations_list_page.dart';
+import 'defect_detail_page.dart';
 import 'defects_list_page.dart';
 
 class SolarInverterDetailPage extends StatelessWidget {
@@ -245,6 +249,72 @@ class _SolarInverterDetailViewState extends State<SolarInverterDetailView> {
     widget.onInverterUpdated?.call(updated);
   }
 
+  Future<void> _createDefect() async {
+    if (_inverter == null) return;
+    await _saveInverter();
+    final inv = _inverter!;
+    final defect = Defect(
+      inspectionId: widget.inspectionId,
+      location: inv.location,
+      locationA: inv.locationA,
+      locationB: inv.locationB,
+      installationComponent: 'Omvormer',
+      naamCode: inv.inverterName,
+    );
+    final id = await _db.insertDefect(defect);
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            DefectDetailPage(defectId: id, inspectionId: widget.inspectionId),
+      ),
+    );
+  }
+
+  Future<void> _removePhoto({required bool typePlaatje}) async {
+    final inverter = _inverter;
+    if (inverter == null) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removePhoto),
+        content: Text(l10n.removePhotoSimpleConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final photoPath =
+        typePlaatje ? inverter.typePlaatjePath : inverter.photoPath;
+    final updated = inverter.copyWith(
+      clearTypePlaatjePath: typePlaatje,
+      clearPhotoPath: !typePlaatje,
+    );
+    await _db.updateSolarInverter(updated);
+    if (photoPath != null) {
+      final file = File(photoPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _inverter = updated;
+    });
+    widget.onInverterUpdated?.call(updated);
+  }
+
   Future<void> _saveRow(SolarStringMeasurement m) async {
     final rc = _rowControllers[m.id!];
     if (rc == null) return;
@@ -428,6 +498,7 @@ class _SolarInverterDetailViewState extends State<SolarInverterDetailView> {
                       });
                       _saveInverter();
                     },
+                    onPhotoRemoved: () => _removePhoto(typePlaatje: false),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -442,6 +513,7 @@ class _SolarInverterDetailViewState extends State<SolarInverterDetailView> {
                       });
                       _saveInverter();
                     },
+                    onPhotoRemoved: () => _removePhoto(typePlaatje: true),
                   ),
                 ),
               ],
@@ -605,6 +677,16 @@ class _SolarInverterDetailViewState extends State<SolarInverterDetailView> {
               label: const Text('Streng toevoegen'),
             ),
             const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _createDefect,
+              icon: const Icon(Icons.warning_amber_outlined),
+              label: const Text('Gebrek aanmaken'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade700,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);

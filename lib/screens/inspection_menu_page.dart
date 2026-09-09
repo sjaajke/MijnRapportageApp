@@ -472,6 +472,8 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                               ),
                             );
                             if (confirmed == true) {
+                              await _db.freezeDefectNumbers(
+                                  widget.inspectionId);
                               await _db.updateInspectionStatus(
                                   widget.inspectionId, 'completed');
                               if (!context.mounted) return;

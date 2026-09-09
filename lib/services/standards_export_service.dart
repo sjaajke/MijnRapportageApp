@@ -64,6 +64,11 @@ class StandardsExportService {
     'inspection_reason': ['Reden voor inspectie', 'Reason for inspection'],
     'inverter': ['Omvormer', 'Inverter'],
     'panel': ['Paneel', 'Panel'],
+    'inspection_scope': ['Inspectie omvang', 'Inspection scope'],
+    'inspection_term_basis': [
+      'Inspectie termijn volgens',
+      'Inspection term according to'
+    ],
   };
 
   static final Map<String, String> _categoryKeyByName = {

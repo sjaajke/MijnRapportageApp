@@ -20,8 +20,11 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:excel/excel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 import '../models/rapport_constatering.dart';
 import '../services/database_service.dart';
+import '../services/photo_service.dart';
 
 class RapportConstateringenPage extends StatefulWidget {
   const RapportConstateringenPage({super.key});
@@ -37,6 +40,7 @@ class _RapportConstateringenPageState
   List<RapportConstatering> _items = [];
   bool _loading = true;
   bool _importing = false;
+  bool _exporting = false;
   bool _dragging = false;
   bool _searchActive = false;
   String _searchQuery = '';
@@ -368,6 +372,52 @@ class _RapportConstateringenPageState
     await _load();
   }
 
+  // ── Excel export ───────────────────────────────────────────────────────────
+
+  static const _exportHeader = [
+    'Groep',
+    'Beschrijving',
+    'Tekst',
+    'Kwalificatie',
+    'Norm',
+    'Toelichting',
+  ];
+
+  Future<void> _exportToExcel() async {
+    if (_items.isEmpty) return;
+    setState(() => _exporting = true);
+    try {
+      final excel = Excel.createExcel();
+      final sheet = excel['Constateringen'];
+      sheet.appendRow(_exportHeader.map((h) => TextCellValue(h)).toList());
+
+      for (final item in _items) {
+        sheet.appendRow([
+          TextCellValue(item.groep),
+          TextCellValue(item.beschrijving),
+          TextCellValue(item.tekst),
+          TextCellValue(item.kwalificatie),
+          TextCellValue(item.norm),
+          TextCellValue(item.toelichting),
+        ]);
+      }
+      excel.delete('Sheet1');
+
+      final bytes = excel.save();
+      final dir = await PhotoService().getExportsDir();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filePath =
+          p.join(dir, 'rapport_constateringen_$timestamp.xlsx');
+      await File(filePath).writeAsBytes(bytes!);
+
+      await Share.shareXFiles([XFile(filePath)]);
+    } catch (e) {
+      _showError('Export mislukt: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   // ── Excel import ───────────────────────────────────────────────────────────
 
   Future<void> _pickAndImport() async {
@@ -529,6 +579,24 @@ class _RapportConstateringenPageState
                 icon: const Icon(Icons.upload_file),
                 tooltip: 'Importeer Excel',
                 onPressed: _pickAndImport,
+              ),
+            if (_exporting)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.download),
+                tooltip: 'Exporteer naar Excel',
+                onPressed: _items.isEmpty ? null : _exportToExcel,
               ),
             PopupMenuButton<void>(
               tooltip: 'Meer opties',

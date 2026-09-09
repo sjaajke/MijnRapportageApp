@@ -166,6 +166,8 @@ class SolarInverter {
     String? cable,
     String? photoPath,
     String? typePlaatjePath,
+    bool clearPhotoPath = false,
+    bool clearTypePlaatjePath = false,
     bool? showInverterFields,
     bool? showPanelFields,
   }) {
@@ -194,8 +196,10 @@ class SolarInverter {
           panelOpenCircuitVoltage ?? this.panelOpenCircuitVoltage,
       protection: protection ?? this.protection,
       cable: cable ?? this.cable,
-      photoPath: photoPath ?? this.photoPath,
-      typePlaatjePath: typePlaatjePath ?? this.typePlaatjePath,
+      photoPath: clearPhotoPath ? null : (photoPath ?? this.photoPath),
+      typePlaatjePath: clearTypePlaatjePath
+          ? null
+          : (typePlaatjePath ?? this.typePlaatjePath),
       showInverterFields: showInverterFields ?? this.showInverterFields,
       showPanelFields: showPanelFields ?? this.showPanelFields,
     );

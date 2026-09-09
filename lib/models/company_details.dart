@@ -23,6 +23,7 @@ class CompanyDetails {
   final String phone;
   final String email;
   final String contactPerson;
+  final String finalResponsible;
   final String inspectors;
   final String? logoPath;
   final String? logoTitelpaginaPath;
@@ -39,6 +40,7 @@ class CompanyDetails {
     this.phone = '',
     this.email = '',
     this.contactPerson = '',
+    this.finalResponsible = '',
     this.inspectors = '',
     this.logoPath,
     this.logoTitelpaginaPath,
@@ -57,6 +59,7 @@ class CompanyDetails {
       'phone': phone,
       'email': email,
       'contact_person': contactPerson,
+      'final_responsible': finalResponsible,
       'inspectors': inspectors,
       'logo_path': logoPath,
       'logo_titelpagina_path': logoTitelpaginaPath,
@@ -76,6 +79,7 @@ class CompanyDetails {
       phone: map['phone'] as String? ?? '',
       email: map['email'] as String? ?? '',
       contactPerson: map['contact_person'] as String? ?? '',
+      finalResponsible: map['final_responsible'] as String? ?? '',
       inspectors: map['inspectors'] as String? ?? '',
       logoPath: map['logo_path'] as String?,
       logoTitelpaginaPath: map['logo_titelpagina_path'] as String?,
@@ -96,6 +100,7 @@ class CompanyDetails {
     String? phone,
     String? email,
     String? contactPerson,
+    String? finalResponsible,
     String? inspectors,
     String? logoPath,
     String? logoTitelpaginaPath,
@@ -112,6 +117,7 @@ class CompanyDetails {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       contactPerson: contactPerson ?? this.contactPerson,
+      finalResponsible: finalResponsible ?? this.finalResponsible,
       inspectors: inspectors ?? this.inspectors,
       logoPath: logoPath ?? this.logoPath,
       logoTitelpaginaPath: logoTitelpaginaPath ?? this.logoTitelpaginaPath,

@@ -50,6 +50,8 @@ class _StandardsPageState extends State<StandardsPage> {
     'inspection_reason',
     'inverter',
     'panel',
+    'inspection_scope',
+    'inspection_term_basis',
   ];
 
   List<String> _categoryLabels(AppLocalizations l10n) => [
@@ -69,6 +71,8 @@ class _StandardsPageState extends State<StandardsPage> {
     l10n.catInspectionReason,
     l10n.catInverter,
     l10n.catPanel,
+    l10n.catInspectionScope,
+    l10n.catInspectionTermBasis,
   ];
 
   bool _exporting = false;

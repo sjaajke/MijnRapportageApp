@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/solar_installation.dart';
@@ -212,6 +213,38 @@ class _SolarInstallationDetailViewState
       context,
       MaterialPageRoute(
         builder: (_) => SolarInverterDetailPage(inverterId: id, inspectionId: widget.inspectionId),
+      ),
+    );
+    _loadInverters();
+  }
+
+  Future<void> _copyInverter(SolarInverter inverter) async {
+    await _db.insertSolarInverter(
+      SolarInverter(
+        solarInstallationId: inverter.solarInstallationId,
+        location: inverter.location,
+        locationA: inverter.locationA,
+        locationB: inverter.locationB,
+        inverterName: inverter.inverterName,
+        inverterBrand: inverter.inverterBrand,
+        inverterType: inverter.inverterType,
+        inverterSerial: inverter.inverterSerial,
+        inverterIp: inverter.inverterIp,
+        inverterIsolationClass: inverter.inverterIsolationClass,
+        inverterMaxVdc: inverter.inverterMaxVdc,
+        inverterMaxIdc: inverter.inverterMaxIdc,
+        inverterIscPv: inverter.inverterIscPv,
+        inverterInom: inverter.inverterInom,
+        panelBrand: inverter.panelBrand,
+        panelType: inverter.panelType,
+        panelShortCircuitCurrent: inverter.panelShortCircuitCurrent,
+        panelOpenCircuitVoltage: inverter.panelOpenCircuitVoltage,
+        protection: inverter.protection,
+        cable: inverter.cable,
+        photoPath: inverter.photoPath,
+        typePlaatjePath: inverter.typePlaatjePath,
+        showInverterFields: inverter.showInverterFields,
+        showPanelFields: inverter.showPanelFields,
       ),
     );
     _loadInverters();
@@ -589,6 +622,66 @@ class _SolarInstallationDetailViewState
     widget.onInstallationUpdated?.call(updated);
   }
 
+  Future<void> _removePhoto(String field) async {
+    final installation = _installation;
+    if (installation == null) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removePhoto),
+        content: Text(l10n.removePhotoSimpleConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final String? photoPath;
+    final SolarInstallation updated;
+    switch (field) {
+      case 'roof1':
+        photoPath = installation.photoRoof1Path;
+        updated = installation.copyWith(clearPhotoRoof1Path: true);
+        break;
+      case 'roof2':
+        photoPath = installation.photoRoof2Path;
+        updated = installation.copyWith(clearPhotoRoof2Path: true);
+        break;
+      case 'inverter1':
+        photoPath = installation.photoInverter1Path;
+        updated = installation.copyWith(clearPhotoInverter1Path: true);
+        break;
+      case 'inverter2':
+        photoPath = installation.photoInverter2Path;
+        updated = installation.copyWith(clearPhotoInverter2Path: true);
+        break;
+      default:
+        return;
+    }
+
+    await _db.updateSolarInstallation(updated);
+    if (photoPath != null) {
+      final file = File(photoPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _installation = updated;
+    });
+    widget.onInstallationUpdated?.call(updated);
+  }
+
   @override
   void dispose() {
     _save();
@@ -837,6 +930,11 @@ class _SolarInstallationDetailViewState
                     children: [
                       const Icon(Icons.chevron_right),
                       IconButton(
+                        icon: const Icon(Icons.copy_outlined, size: 20),
+                        tooltip: 'Omvormer kopiëren',
+                        onPressed: () => _copyInverter(inv),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.delete_outline,
                             color: Colors.red, size: 20),
                         onPressed: () => _deleteInverter(inv),
@@ -877,6 +975,7 @@ class _SolarInstallationDetailViewState
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto('roof1'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -891,6 +990,7 @@ class _SolarInstallationDetailViewState
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto('roof2'),
                   ),
                 ),
               ],
@@ -909,6 +1009,7 @@ class _SolarInstallationDetailViewState
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto('inverter1'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -924,6 +1025,7 @@ class _SolarInstallationDetailViewState
                       });
                       _save();
                     },
+                    onPhotoRemoved: () => _removePhoto('inverter2'),
                   ),
                 ),
               ],

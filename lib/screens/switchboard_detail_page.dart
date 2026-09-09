@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
@@ -345,6 +346,49 @@ class _SwitchboardDetailViewState extends State<SwitchboardDetailView> {
     widget.onSwitchboardUpdated?.call(updated);
   }
 
+  Future<void> _removePhoto(int photoNumber) async {
+    final switchboard = _switchboard;
+    if (switchboard == null) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.removePhoto),
+        content: Text(l10n.removePhotoSimpleConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final photoPath =
+        photoNumber == 1 ? switchboard.photo1Path : switchboard.photo2Path;
+    final updated = switchboard.copyWith(
+      clearPhoto1Path: photoNumber == 1,
+      clearPhoto2Path: photoNumber == 2,
+    );
+    await _db.updateSwitchboard(updated);
+    if (photoPath != null) {
+      final file = File(photoPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _switchboard = updated;
+    });
+    widget.onSwitchboardUpdated?.call(updated);
+  }
+
   Future<void> _createDefect() async {
     if (_switchboard == null) return;
     await _save();
@@ -588,6 +632,7 @@ class _SwitchboardDetailViewState extends State<SwitchboardDetailView> {
                     });
                     _save();
                   },
+                  onPhotoRemoved: () => _removePhoto(1),
                 ),
               ),
               const SizedBox(width: 12),
@@ -602,6 +647,7 @@ class _SwitchboardDetailViewState extends State<SwitchboardDetailView> {
                     });
                     _save();
                   },
+                  onPhotoRemoved: () => _removePhoto(2),
                 ),
               ),
             ],

@@ -15,11 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/company_details.dart';
 import '../models/company_inspector.dart';
 import '../models/measurement_instrument.dart';
+import '../services/company_details_export_service.dart';
 import '../services/database_service.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/photo_container.dart';
@@ -43,6 +46,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _contactPerson = TextEditingController();
+  final _finalResponsible = TextEditingController();
   final _herstelFirebaseProjectId = TextEditingController();
   final _herstelFirebaseStorageBucket = TextEditingController();
   final _herstelWebDomain = TextEditingController();
@@ -51,6 +55,9 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
   List<CompanyInspector> _inspectors = [];
   List<MeasurementInstrument> _instruments = [];
   bool _loading = true;
+  bool _exporting = false;
+  bool _importing = false;
+  bool _dragging = false;
 
   @override
   void initState() {
@@ -75,6 +82,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
       _phone.text = details.phone;
       _email.text = details.email;
       _contactPerson.text = details.contactPerson;
+      _finalResponsible.text = details.finalResponsible;
       _herstelFirebaseProjectId.text = details.herstelFirebaseProjectId;
       _herstelFirebaseStorageBucket.text = details.herstelFirebaseStorageBucket;
       _herstelWebDomain.text = details.herstelWebDomain;
@@ -97,6 +105,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
       phone: _phone.text,
       email: _email.text,
       contactPerson: _contactPerson.text,
+      finalResponsible: _finalResponsible.text,
       herstelFirebaseProjectId: _herstelFirebaseProjectId.text,
       herstelFirebaseStorageBucket: _herstelFirebaseStorageBucket.text,
       herstelWebDomain: _herstelWebDomain.text,
@@ -122,9 +131,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
   Future<void> _addInspector() async {
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => const InspectorDetailPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const InspectorDetailPage()),
     );
     if (result == true) await _refreshInspectors();
   }
@@ -153,8 +160,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child:
-                Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -169,9 +175,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
   Future<void> _addInstrument() async {
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => const MeasurementInstrumentPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const MeasurementInstrumentPage()),
     );
     if (result == true) await _refreshInstruments();
   }
@@ -193,7 +197,8 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
       builder: (ctx) => AlertDialog(
         title: Text(l10n.deleteMeasurementInstrument),
         content: Text(
-            l10n.deleteMeasurementInstrumentConfirm(instrument.displayName)),
+          l10n.deleteMeasurementInstrumentConfirm(instrument.displayName),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -201,8 +206,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child:
-                Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -210,6 +214,87 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
     if (confirmed != true) return;
     await _db.deleteMeasurementInstrument(instrument.id!);
     await _refreshInstruments();
+  }
+
+  // ── Export ───────────────────────────────────────────────────────────────
+
+  Future<void> _exportToExcel() async {
+    if (_details == null) return;
+    final l10n = AppLocalizations.of(context);
+    setState(() => _exporting = true);
+    try {
+      await CompanyDetailsExportService().exportExcelAndShare(
+        details: _details!,
+        inspectors: _inspectors,
+        instruments: _instruments,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.exportFailed(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _pickAndImport() async {
+    const xlsxType = XTypeGroup(
+      label: 'Excel',
+      extensions: ['xlsx'],
+      uniformTypeIdentifiers: ['org.openxmlformats.spreadsheetml.sheet'],
+    );
+    final file = await openFile(acceptedTypeGroups: [xlsxType]);
+    if (file == null) return;
+    await _runImport(file.path);
+  }
+
+  Future<void> _runImport(String path) async {
+    final l10n = AppLocalizations.of(context);
+    if (!path.toLowerCase().endsWith('.xlsx')) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.selectXlsxFile)));
+      return;
+    }
+
+    setState(() => _importing = true);
+    try {
+      final result = await CompanyDetailsExportService().importExcel(path);
+      await _loadData();
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.importComplete),
+            content: Text(
+              l10n.companyImportResult(
+                companyInfoUpdated: result.companyInfoUpdated,
+                inspectorsInserted: result.inspectorsInserted,
+                inspectorsUpdated: result.inspectorsUpdated,
+                instrumentsInserted: result.instrumentsInserted,
+                instrumentsUpdated: result.instrumentsUpdated,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.exportFailed(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
   }
 
   String _inspectorNameForId(int? inspectorId) {
@@ -227,6 +312,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
     _phone.dispose();
     _email.dispose();
     _contactPerson.dispose();
+    _finalResponsible.dispose();
     _herstelFirebaseProjectId.dispose();
     _herstelFirebaseStorageBucket.dispose();
     _herstelWebDomain.dispose();
@@ -245,225 +331,309 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.companyDetails)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      appBar: AppBar(
+        title: Text(l10n.companyDetails),
+        actions: [
+          IconButton(
+            icon: _importing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.upload_file_outlined),
+            tooltip: l10n.importFromExcel,
+            onPressed: _importing ? null : _pickAndImport,
+          ),
+          IconButton(
+            icon: _exporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.table_chart_outlined),
+            tooltip: l10n.exportToExcel,
+            onPressed: _exporting ? null : _exportToExcel,
+          ),
+        ],
+      ),
+      body: DropTarget(
+        onDragEntered: (_) => setState(() => _dragging = true),
+        onDragExited: (_) => setState(() => _dragging = false),
+        onDragDone: (detail) {
+          setState(() => _dragging = false);
+          if (detail.files.isNotEmpty) {
+            _runImport(detail.files.first.path);
+          }
+        },
+        child: Stack(
           children: [
-            // ── Bedrijfslogo ───────────────────────────────────────────────
-            SectionHeader(title: l10n.companyLogo),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
+            _buildForm(l10n),
+            if (_dragging)
+              Container(
+                color: Colors.blue.withValues(alpha: 0.15),
+                child: Center(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      PhotoContainer(
-                        label: l10n.logo,
-                        photoPath: _details?.logoPath,
-                        height: 150,
-                        fit: BoxFit.contain,
-                        onPhotoSelected: (path) {
-                          setState(() => _details = _details?.copyWith(logoPath: path));
-                          _autoSave();
-                        },
+                      const Icon(
+                        Icons.upload_file,
+                        size: 64,
+                        color: Colors.blue,
                       ),
                       const SizedBox(height: 12),
-                      PhotoContainer(
-                        label: 'Logo SCIOS',
-                        photoPath: _details?.logoSciosPath,
-                        height: 150,
-                        fit: BoxFit.contain,
-                        onPhotoSelected: (path) {
-                          setState(() => _details = _details?.copyWith(logoSciosPath: path));
-                          _autoSave();
-                        },
+                      Text(
+                        l10n.dropXlsxHere,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.blue.shade800,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: PhotoContainer(
-                    label: 'Logo titelpagina',
-                    photoPath: _details?.logoTitelpaginaPath,
-                    height: 450,
-                    fit: BoxFit.contain,
-                    onPhotoSelected: (path) {
-                      setState(() => _details = _details?.copyWith(logoTitelpaginaPath: path));
-                      _autoSave();
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            // ── Bedrijfsinformatie ─────────────────────────────────────────
-            SectionHeader(title: l10n.companyInfo),
-            CustomTextField(
-              label: l10n.companyNameField,
-              controller: _companyName,
-              onChanged: (_) => _autoSave(),
-            ),
-            CustomTextField(
-              label: l10n.address,
-              controller: _address,
-              onChanged: (_) => _autoSave(),
-            ),
-            CustomTextField(
-              label: l10n.postalCity,
-              controller: _postalCity,
-              onChanged: (_) => _autoSave(),
-            ),
-            CustomTextField(
-              label: l10n.phone,
-              controller: _phone,
-              onChanged: (_) => _autoSave(),
-              keyboardType: TextInputType.phone,
-            ),
-            CustomTextField(
-              label: l10n.emailLabel,
-              controller: _email,
-              onChanged: (_) => _autoSave(),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            CustomTextField(
-              label: l10n.contactPerson,
-              controller: _contactPerson,
-              onChanged: (_) => _autoSave(),
-            ),
-
-            // ── Herstel-koppeling (Firebase) ────────────────────────────────
-            SectionHeader(title: l10n.herstelFirebaseSectionTitle),
-            CustomTextField(
-              label: l10n.herstelFirebaseProjectId,
-              controller: _herstelFirebaseProjectId,
-              onChanged: (_) => _autoSave(),
-            ),
-            CustomTextField(
-              label: l10n.herstelFirebaseStorageBucket,
-              controller: _herstelFirebaseStorageBucket,
-              onChanged: (_) => _autoSave(),
-            ),
-            CustomTextField(
-              label: l10n.herstelWebDomain,
-              controller: _herstelWebDomain,
-              hint: 'mijnrapportageapp.web.app',
-              onChanged: (_) => _autoSave(),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                l10n.herstelFirebaseNote,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
-            ),
-
-            // ── Inspecteurs ────────────────────────────────────────────────
-            SectionHeader(title: l10n.inspectorsSectionTitle),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _addInspector,
-                icon: const Icon(Icons.add),
-                label: Text(l10n.addInspector),
-              ),
-            ),
-            if (_inspectors.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  l10n.noInspectorsAdded,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              )
-            else
-              ..._inspectors.map((inspector) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(inspector.name),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _editInspector(inspector),
-                          ),
-                          IconButton(
-                            icon:
-                                const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteInspector(inspector),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )),
-
-            // ── Meetinstrumenten ───────────────────────────────────────────
-            SectionHeader(title: l10n.measurementInstrumentsSectionTitle),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _addInstrument,
-                icon: const Icon(Icons.add),
-                label: Text(l10n.addMeasurementInstrument),
-              ),
-            ),
-            if (_instruments.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  l10n.noMeasurementInstrumentsAdded,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              )
-            else
-              ..._instruments.map((instrument) {
-                final inspectorName =
-                    _inspectorNameForId(instrument.inspectorId);
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(
-                      [instrument.fabrikant, instrument.model]
-                          .where((s) => s.isNotEmpty)
-                          .join(' '),
-                    ),
-                    subtitle: _buildInstrumentSubtitle(
-                        instrument, inspectorName),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () => _editInstrument(instrument),
-                        ),
-                        IconButton(
-                          icon:
-                              const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteInstrument(instrument),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-
-            const SizedBox(height: 16),
-            Text(
-              l10n.autoFillNote,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildForm(AppLocalizations l10n) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Bedrijfslogo ───────────────────────────────────────────────
+          SectionHeader(title: l10n.companyLogo),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    PhotoContainer(
+                      label: l10n.logo,
+                      photoPath: _details?.logoPath,
+                      height: 150,
+                      fit: BoxFit.contain,
+                      onPhotoSelected: (path) {
+                        setState(
+                          () => _details = _details?.copyWith(logoPath: path),
+                        );
+                        _autoSave();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    PhotoContainer(
+                      label: 'Logo SCIOS',
+                      photoPath: _details?.logoSciosPath,
+                      height: 150,
+                      fit: BoxFit.contain,
+                      onPhotoSelected: (path) {
+                        setState(
+                          () => _details = _details?.copyWith(
+                            logoSciosPath: path,
+                          ),
+                        );
+                        _autoSave();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: PhotoContainer(
+                  label: 'Logo titelpagina',
+                  photoPath: _details?.logoTitelpaginaPath,
+                  height: 450,
+                  fit: BoxFit.contain,
+                  onPhotoSelected: (path) {
+                    setState(
+                      () => _details = _details?.copyWith(
+                        logoTitelpaginaPath: path,
+                      ),
+                    );
+                    _autoSave();
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          // ── Bedrijfsinformatie ─────────────────────────────────────────
+          SectionHeader(title: l10n.companyInfo),
+          CustomTextField(
+            label: l10n.companyNameField,
+            controller: _companyName,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.address,
+            controller: _address,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.postalCity,
+            controller: _postalCity,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.phone,
+            controller: _phone,
+            onChanged: (_) => _autoSave(),
+            keyboardType: TextInputType.phone,
+          ),
+          CustomTextField(
+            label: l10n.emailLabel,
+            controller: _email,
+            onChanged: (_) => _autoSave(),
+            keyboardType: TextInputType.emailAddress,
+          ),
+          CustomTextField(
+            label: l10n.contactPerson,
+            controller: _contactPerson,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.finalResponsible,
+            controller: _finalResponsible,
+            onChanged: (_) => _autoSave(),
+          ),
+
+          // ── Herstel-koppeling (Firebase) ────────────────────────────────
+          SectionHeader(title: l10n.herstelFirebaseSectionTitle),
+          CustomTextField(
+            label: l10n.herstelFirebaseProjectId,
+            controller: _herstelFirebaseProjectId,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.herstelFirebaseStorageBucket,
+            controller: _herstelFirebaseStorageBucket,
+            onChanged: (_) => _autoSave(),
+          ),
+          CustomTextField(
+            label: l10n.herstelWebDomain,
+            controller: _herstelWebDomain,
+            hint: 'mijnrapportageapp.web.app',
+            onChanged: (_) => _autoSave(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text(
+              l10n.herstelFirebaseNote,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ),
+
+          // ── Inspecteurs ────────────────────────────────────────────────
+          SectionHeader(title: l10n.inspectorsSectionTitle),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _addInspector,
+              icon: const Icon(Icons.add),
+              label: Text(l10n.addInspector),
+            ),
+          ),
+          if (_inspectors.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                l10n.noInspectorsAdded,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            )
+          else
+            ..._inspectors.map(
+              (inspector) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(inspector.name),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _editInspector(inspector),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteInspector(inspector),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Meetinstrumenten ───────────────────────────────────────────
+          SectionHeader(title: l10n.measurementInstrumentsSectionTitle),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _addInstrument,
+              icon: const Icon(Icons.add),
+              label: Text(l10n.addMeasurementInstrument),
+            ),
+          ),
+          if (_instruments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                l10n.noMeasurementInstrumentsAdded,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            )
+          else
+            ..._instruments.map((instrument) {
+              final inspectorName = _inspectorNameForId(instrument.inspectorId);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(
+                    [
+                      instrument.fabrikant,
+                      instrument.model,
+                    ].where((s) => s.isNotEmpty).join(' '),
+                  ),
+                  subtitle: _buildInstrumentSubtitle(instrument, inspectorName),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _editInstrument(instrument),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteInstrument(instrument),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+
+          const SizedBox(height: 16),
+          Text(
+            l10n.autoFillNote,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
   Widget? _buildInstrumentSubtitle(
-      MeasurementInstrument i, String inspectorName) {
+    MeasurementInstrument i,
+    String inspectorName,
+  ) {
     final line1 = <String>[];
     if (i.serienummer.isNotEmpty) line1.add('SN: ${i.serienummer}');
     if (inspectorName.isNotEmpty) line1.add(inspectorName);
@@ -471,7 +641,8 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
 
     final line2 = <String>[];
     if (i.kalibratiedatum.isNotEmpty) line2.add('Kal.: ${i.kalibratiedatum}');
-    if (i.herkalibratiedatum.isNotEmpty) line2.add('Herk.: ${i.herkalibratiedatum}');
+    if (i.herkalibratiedatum.isNotEmpty)
+      line2.add('Herk.: ${i.herkalibratiedatum}');
 
     if (line1.isEmpty && line2.isEmpty) return null;
 

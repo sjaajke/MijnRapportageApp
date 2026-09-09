@@ -38,6 +38,8 @@ class GeneralData {
   final String inspectorPhone;
   final String inspectorEmail;
   final String inspectorContact;
+  final String inspectorFinalResponsible;
+  final String inspectorAuthor;
   final String inspectors;
   final String measurementInstruments;
 
@@ -64,6 +66,8 @@ class GeneralData {
     this.inspectorPhone = '',
     this.inspectorEmail = '',
     this.inspectorContact = '',
+    this.inspectorFinalResponsible = '',
+    this.inspectorAuthor = '',
     this.inspectors = '',
     this.measurementInstruments = '',
   });
@@ -92,6 +96,8 @@ class GeneralData {
       'inspector_phone': inspectorPhone,
       'inspector_email': inspectorEmail,
       'inspector_contact': inspectorContact,
+      'inspector_final_responsible': inspectorFinalResponsible,
+      'inspector_author': inspectorAuthor,
       'inspectors': inspectors,
       'measurement_instruments': measurementInstruments,
     };
@@ -123,6 +129,9 @@ class GeneralData {
       inspectorPhone: map['inspector_phone'] as String? ?? '',
       inspectorEmail: map['inspector_email'] as String? ?? '',
       inspectorContact: map['inspector_contact'] as String? ?? '',
+      inspectorFinalResponsible:
+          map['inspector_final_responsible'] as String? ?? '',
+      inspectorAuthor: map['inspector_author'] as String? ?? '',
       inspectors: map['inspectors'] as String? ?? '',
       measurementInstruments: map['measurement_instruments'] as String? ?? '',
     );
@@ -151,6 +160,8 @@ class GeneralData {
     String? inspectorPhone,
     String? inspectorEmail,
     String? inspectorContact,
+    String? inspectorFinalResponsible,
+    String? inspectorAuthor,
     String? inspectors,
     String? measurementInstruments,
   }) {
@@ -179,6 +190,9 @@ class GeneralData {
       inspectorPhone: inspectorPhone ?? this.inspectorPhone,
       inspectorEmail: inspectorEmail ?? this.inspectorEmail,
       inspectorContact: inspectorContact ?? this.inspectorContact,
+      inspectorFinalResponsible:
+          inspectorFinalResponsible ?? this.inspectorFinalResponsible,
+      inspectorAuthor: inspectorAuthor ?? this.inspectorAuthor,
       inspectors: inspectors ?? this.inspectors,
       measurementInstruments: measurementInstruments ?? this.measurementInstruments,
     );

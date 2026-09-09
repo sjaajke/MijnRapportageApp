@@ -230,6 +230,10 @@ class _EindbeoordelingPageState extends State<EindbeoordelingPage> {
     String? selectedNorm;
     int? selectedJaren;
 
+    final termBasisStandards = await _db.getStandards('inspection_term_basis');
+    final normOptions = termBasisStandards.map((s) => s.displayName).toList();
+    if (!mounted) return;
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -247,23 +251,30 @@ class _EindbeoordelingPageState extends State<EindbeoordelingPage> {
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                   const SizedBox(height: 4),
-                  RadioGroup<String>(
-                    groupValue: selectedNorm,
-                    onChanged: (v) =>
-                        setDialogState(() => selectedNorm = v),
-                    child: Column(
-                      children: ['Polisvoorwaarde', 'NEN 3140', 'NTA 8220']
-                          .map(
-                            (norm) => RadioListTile<String>(
-                              title: Text(norm),
-                              value: norm,
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
+                  normOptions.isEmpty
+                      ? const Text(
+                          'Geen items ingesteld bij Standaarden > '
+                          'Inspectie termijn volgens.',
+                          style: TextStyle(
+                              fontStyle: FontStyle.italic, fontSize: 13),
+                        )
+                      : RadioGroup<String>(
+                          groupValue: selectedNorm,
+                          onChanged: (v) =>
+                              setDialogState(() => selectedNorm = v),
+                          child: Column(
+                            children: normOptions
+                                .map(
+                                  (norm) => RadioListTile<String>(
+                                    title: Text(norm),
+                                    value: norm,
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
                   const SizedBox(height: 12),
                   const Text(
                     'Termijn:',

@@ -20,10 +20,69 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:excel/excel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
 import '../models/report_template.dart';
 import '../services/database_service.dart';
+import '../services/photo_service.dart';
 import 'report_template_detail_page.dart';
+
+const _reportTemplateColumns = [
+  'TypeRapport',
+  'Rapporttitel',
+  'Subtitel',
+  'Inleiding',
+  'Eindbeoordeling',
+  'Herstelverklaring',
+  'Eindbeoordeling_OKE',
+  'Volgende inspectie',
+  'Visuele inspectie Titel',
+  'Visuele inspectie',
+  'Visuele inspectie Toelichting',
+  'Metingen en beproevingen Titel',
+  'Metingen en beproevingen',
+  'Metingen en beproevingen Toelichting',
+  'Aanvullend onderzoek Titel',
+  'Aanvullend onderzoek',
+  'Toelichting Aanvullend Onderzoek',
+  'Lijst_4_Titel',
+  'Lijst_4',
+  'Lijst_4_Toelichting',
+  'Vinklijst afkeuringscriteria',
+  'De inspectie is uitgevoerd volgens',
+  'Het elektrisch materieel is getoets aan',
+  'Toelichting',
+  'Melding gevaarlijke situatie',
+];
+
+List<String> _reportTemplateRowValues(ReportTemplate t) => [
+      t.typeRapport,
+      t.rapporttitel,
+      t.subtitel,
+      t.inleiding,
+      t.tekstRapportVerklaring,
+      t.herstelVerklaring,
+      t.eindbeoordelingOKE,
+      t.volgendInspectie,
+      t.visueleInspectieTitel,
+      t.visueleInspectie,
+      t.visueleInspectieToelichting,
+      t.metingenTitel,
+      t.metingen,
+      t.metingenToelichting,
+      t.aanvullendOnderzoekTitel,
+      t.aanvullendOnderzoek,
+      t.aanvullendOnderzoekToelichting,
+      t.lijst4Titel,
+      t.lijst4,
+      t.lijst4Toelichting,
+      t.vinklijstAfkeuringscriteria,
+      t.inspectieUitgevoerdVolgens,
+      t.elektrischMaterieelGetoetst,
+      t.inleidingToelichting,
+      t.meldingGevaarlijkeSituatie,
+    ];
 
 class ReportTemplatesPage extends StatefulWidget {
   const ReportTemplatesPage({super.key});
@@ -37,6 +96,7 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
   List<ReportTemplate> _templates = [];
   bool _loading = true;
   bool _importing = false;
+  bool _exporting = false;
   bool _dragging = false;
 
   @override
@@ -208,6 +268,33 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
     }
   }
 
+  Future<void> _exportToExcel() async {
+    setState(() => _exporting = true);
+    try {
+      final excel = Excel.createExcel();
+      final sheet = excel['Rapport teksten'];
+      sheet.appendRow(
+          _reportTemplateColumns.map((h) => TextCellValue(h)).toList());
+      for (final t in _templates) {
+        sheet.appendRow(_reportTemplateRowValues(t)
+            .map((v) => TextCellValue(v))
+            .toList());
+      }
+      excel.delete('Sheet1');
+
+      final bytes = excel.save();
+      final dir = await PhotoService().getExportsDir();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filePath = p.join(dir, 'rapport_teksten_$timestamp.xlsx');
+      await File(filePath).writeAsBytes(bytes!);
+      await Share.shareXFiles([XFile(filePath)]);
+    } catch (e) {
+      _showError('Export mislukt: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   void _showImportResult(int inserted, int updated) {
     showDialog(
       context: context,
@@ -257,6 +344,24 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
               icon: const Icon(Icons.upload_file),
               tooltip: 'Importeer Excel',
               onPressed: _pickAndImport,
+            ),
+          if (_exporting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                ),
+              ),
+            )
+          else if (_templates.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.table_chart_outlined),
+              tooltip: l10n.exportToExcel,
+              onPressed: _exportToExcel,
             ),
           if (_templates.isNotEmpty)
             IconButton(

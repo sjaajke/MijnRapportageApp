@@ -318,9 +318,7 @@ class _DefectsListPageState extends State<DefectsListPage> {
                     ),
                   ),
             title: Text(
-              defect.locationFull.isNotEmpty
-                  ? defect.locationFull
-                  : l10n.defectNumber(defect.id!),
+              '${defect.defectNumber ?? (index + 1)}. ${defect.locationFull.isNotEmpty ? defect.locationFull : l10n.defectNumber(defect.id!)}',
             ),
             subtitle: defect.description.isNotEmpty
                 ? Text(

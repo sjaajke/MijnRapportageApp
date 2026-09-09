@@ -412,6 +412,7 @@ class DatabaseService {
         phone TEXT DEFAULT '',
         email TEXT DEFAULT '',
         contact_person TEXT DEFAULT '',
+        final_responsible TEXT DEFAULT '',
         inspectors TEXT DEFAULT '',
         logo_path TEXT,
         logo_titelpagina_path TEXT
@@ -442,6 +443,11 @@ class DatabaseService {
     if (!compExisting.contains('herstel_web_domain')) {
       await db.execute(
         "ALTER TABLE company_details ADD COLUMN herstel_web_domain TEXT DEFAULT ''",
+      );
+    }
+    if (!compExisting.contains('final_responsible')) {
+      await db.execute(
+        "ALTER TABLE company_details ADD COLUMN final_responsible TEXT DEFAULT ''",
       );
     }
     await _ensureCompanyInspectorsSchema();
@@ -507,7 +513,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 28,
+      version: 29,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -640,6 +646,8 @@ class DatabaseService {
         inspector_phone TEXT DEFAULT '',
         inspector_email TEXT DEFAULT '',
         inspector_contact TEXT DEFAULT '',
+        inspector_final_responsible TEXT DEFAULT '',
+        inspector_author TEXT DEFAULT '',
         inspectors TEXT DEFAULT '',
         measurement_instruments TEXT DEFAULT '',
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
@@ -724,6 +732,7 @@ class DatabaseService {
         scope12 INTEGER NOT NULL DEFAULT 0,
         scope_eos INTEGER NOT NULL DEFAULT 0,
         sort_order INTEGER NOT NULL DEFAULT 0,
+        defect_number INTEGER,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
       )
     ''');
@@ -1073,6 +1082,11 @@ class DatabaseService {
     if (!cols.any((c) => c['name'] == 'sort_order')) {
       await db.execute(
         "ALTER TABLE defects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+    if (!cols.any((c) => c['name'] == 'defect_number')) {
+      await db.execute(
+        "ALTER TABLE defects ADD COLUMN defect_number INTEGER",
       );
     }
     // Ensure title_page_defaults table exists (for databases created before this feature).
@@ -1780,6 +1794,20 @@ class DatabaseService {
       if (!colNames.contains('include_checklist_in_pdf')) {
         await db.execute(
           "ALTER TABLE switchboards ADD COLUMN include_checklist_in_pdf INTEGER NOT NULL DEFAULT 1",
+        );
+      }
+    }
+    if (oldVersion < 29) {
+      final cols = await db.rawQuery("PRAGMA table_info(general_data)");
+      final colNames = cols.map((c) => c['name'] as String).toSet();
+      if (!colNames.contains('inspector_final_responsible')) {
+        await db.execute(
+          "ALTER TABLE general_data ADD COLUMN inspector_final_responsible TEXT DEFAULT ''",
+        );
+      }
+      if (!colNames.contains('inspector_author')) {
+        await db.execute(
+          "ALTER TABLE general_data ADD COLUMN inspector_author TEXT DEFAULT ''",
         );
       }
     }
@@ -2811,6 +2839,33 @@ class DatabaseService {
         where: 'id = ?',
         whereArgs: [orderedIds[i]],
       );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Permanently assigns display numbers to defects that don't have one yet,
+  /// in their current order. Existing numbers are never reassigned, so once
+  /// an inspection is completed its findings keep the same numbering even if
+  /// they are later reordered, resorted, or the inspection is reopened.
+  Future<void> freezeDefectNumbers(int inspectionId) async {
+    final db = await database;
+    final defects = await getDefects(inspectionId);
+    var next = defects
+            .map((d) => d.defectNumber)
+            .whereType<int>()
+            .fold<int>(0, (max, n) => n > max ? n : max) +
+        1;
+    final batch = db.batch();
+    for (final d in defects) {
+      if (d.defectNumber == null) {
+        batch.update(
+          'defects',
+          {'defect_number': next},
+          where: 'id = ?',
+          whereArgs: [d.id],
+        );
+        next++;
+      }
     }
     await batch.commit(noResult: true);
   }

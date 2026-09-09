@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/inspection_detail.dart';
+import '../models/standard.dart';
 import '../models/steekproef_item.dart';
 import '../services/bag_service.dart';
 import '../services/database_service.dart';
@@ -65,6 +66,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
   List<String> _selectedGebouwfunctie = [];
   List<String> _selectedBijzondereInstallatie = [];
   List<String> _inspectionReasonOptions = [];
+  List<Standard> _scopeStandards = [];
   bool _loading = true;
   bool _bagLoading = false;
 
@@ -101,6 +103,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
 
   Future<void> _loadData() async {
     final reasonStandards = await _db.getStandards('inspection_reason');
+    final scopeStandards = await _db.getStandards('inspection_scope');
     var detail = await _db.getInspectionDetail(widget.inspectionId);
     if (detail == null) {
       await _db.insertInspectionDetail(
@@ -140,6 +143,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
       _inspectionReasonOptions = reasonStandards
           .map((s) => s.displayName)
           .toList();
+      _scopeStandards = scopeStandards;
       _selectedTypeRapport = detail?.typeRapport.isNotEmpty == true
           ? detail!.typeRapport
           : null;
@@ -319,6 +323,45 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
   Future<void> _deleteSteekproef(SteekproefItem item) async {
     await _db.deleteSteekproefItem(item.id!);
     setState(() => _steekproefItems.remove(item));
+  }
+
+  Future<void> _pickScopeDescription() async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showDialog<Standard>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(l10n.catInspectionScope),
+        children: _scopeStandards
+            .map(
+              (s) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, s),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      s.value,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    if (selected == null) return;
+    final current = _scopeDesc.text;
+    _scopeDesc.text = current.isEmpty
+        ? selected.value
+        : '$current\n${selected.value}';
+    _scopeDesc.selection = TextSelection.collapsed(
+      offset: _scopeDesc.text.length,
+    );
+    _autoSave();
   }
 
   Future<void> _autoSave() async {
@@ -600,6 +643,15 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
 
                   // ── Omvang ──────────────────────────────────────────────────
                   SectionHeader(title: l10n.scope),
+                  if (_scopeStandards.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _pickScopeDescription,
+                        icon: const Icon(Icons.playlist_add, size: 18),
+                        label: Text(l10n.chooseFromStandards),
+                      ),
+                    ),
                   CustomTextField(
                     label: l10n.scopeDescription,
                     controller: _scopeDesc,

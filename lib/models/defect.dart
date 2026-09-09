@@ -36,6 +36,7 @@ class Defect {
   final String meldingNaamKlant;
   final String meldingHandtekeningKlant;
   final int sortOrder;
+  final int? defectNumber;
 
   static const List<String> classifications = ['Rd', 'Or', 'Ge', 'Bl', 'Pa', 'Gr'];
 
@@ -64,6 +65,7 @@ class Defect {
     this.meldingNaamKlant = '',
     this.meldingHandtekeningKlant = '',
     this.sortOrder = 0,
+    this.defectNumber,
   });
 
   Map<String, dynamic> toMap() {
@@ -87,6 +89,7 @@ class Defect {
       'melding_naam_klant': meldingNaamKlant,
       'melding_handtekening_klant': meldingHandtekeningKlant,
       'sort_order': sortOrder,
+      'defect_number': defectNumber,
     };
   }
 
@@ -113,6 +116,7 @@ class Defect {
       meldingHandtekeningKlant:
           map['melding_handtekening_klant'] as String? ?? '',
       sortOrder: map['sort_order'] as int? ?? 0,
+      defectNumber: map['defect_number'] as int?,
     );
   }
 
@@ -128,6 +132,8 @@ class Defect {
     String? description,
     String? photo1Path,
     String? photo2Path,
+    bool clearPhoto1Path = false,
+    bool clearPhoto2Path = false,
     bool? hasAnnotations,
     bool? scope8,
     bool? scope10,
@@ -137,6 +143,7 @@ class Defect {
     String? meldingNaamKlant,
     String? meldingHandtekeningKlant,
     int? sortOrder,
+    int? defectNumber,
   }) {
     return Defect(
       id: id ?? this.id,
@@ -148,8 +155,8 @@ class Defect {
       naamCode: naamCode ?? this.naamCode,
       classification: classification ?? this.classification,
       description: description ?? this.description,
-      photo1Path: photo1Path ?? this.photo1Path,
-      photo2Path: photo2Path ?? this.photo2Path,
+      photo1Path: clearPhoto1Path ? null : (photo1Path ?? this.photo1Path),
+      photo2Path: clearPhoto2Path ? null : (photo2Path ?? this.photo2Path),
       hasAnnotations: hasAnnotations ?? this.hasAnnotations,
       scope8: scope8 ?? this.scope8,
       scope10: scope10 ?? this.scope10,
@@ -160,6 +167,7 @@ class Defect {
       meldingHandtekeningKlant:
           meldingHandtekeningKlant ?? this.meldingHandtekeningKlant,
       sortOrder: sortOrder ?? this.sortOrder,
+      defectNumber: defectNumber ?? this.defectNumber,
     );
   }
 }

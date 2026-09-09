@@ -136,6 +136,38 @@ class _SolarInstallationsListPageState
     }
   }
 
+  Future<void> _copyInverter(SolarInverter inverter) async {
+    await _db.insertSolarInverter(
+      SolarInverter(
+        solarInstallationId: inverter.solarInstallationId,
+        location: inverter.location,
+        locationA: inverter.locationA,
+        locationB: inverter.locationB,
+        inverterName: inverter.inverterName,
+        inverterBrand: inverter.inverterBrand,
+        inverterType: inverter.inverterType,
+        inverterSerial: inverter.inverterSerial,
+        inverterIp: inverter.inverterIp,
+        inverterIsolationClass: inverter.inverterIsolationClass,
+        inverterMaxVdc: inverter.inverterMaxVdc,
+        inverterMaxIdc: inverter.inverterMaxIdc,
+        inverterIscPv: inverter.inverterIscPv,
+        inverterInom: inverter.inverterInom,
+        panelBrand: inverter.panelBrand,
+        panelType: inverter.panelType,
+        panelShortCircuitCurrent: inverter.panelShortCircuitCurrent,
+        panelOpenCircuitVoltage: inverter.panelOpenCircuitVoltage,
+        protection: inverter.protection,
+        cable: inverter.cable,
+        photoPath: inverter.photoPath,
+        typePlaatjePath: inverter.typePlaatjePath,
+        showInverterFields: inverter.showInverterFields,
+        showPanelFields: inverter.showPanelFields,
+      ),
+    );
+    _loadData();
+  }
+
   Future<void> _deleteInverter(SolarInverter inverter) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -265,6 +297,14 @@ class _SolarInstallationsListPageState
                                         children: [
                                           IconButton(
                                             icon: const Icon(
+                                                Icons.copy_outlined,
+                                                size: 20),
+                                            tooltip: 'Omvormer kopiëren',
+                                            onPressed: () =>
+                                                _copyInverter(inv),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
                                                 Icons.delete_outline,
                                                 color: Colors.red,
                                                 size: 20),
@@ -385,6 +425,11 @@ class _SolarInstallationsListPageState
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined, size: 20),
+                          tooltip: 'Omvormer kopiëren',
+                          onPressed: () => _copyInverter(inv),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Colors.red, size: 20),

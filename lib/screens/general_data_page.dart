@@ -60,6 +60,8 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
   final _inspectorPhone = TextEditingController();
   final _inspectorEmail = TextEditingController();
   final _inspectorContact = TextEditingController();
+  final _inspectorFinalResponsible = TextEditingController();
+  String? _selectedAuthor;
 
   GeneralData? _data;
   List<CompanyInspector> _companyInspectors = [];
@@ -77,9 +79,9 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
   Future<void> _loadData() async {
     final companyInspectors = await _db.getCompanyInspectors();
     final allInstruments = await _db.getAllMeasurementInstruments();
+    final company = await _db.getCompanyDetails();
     var data = await _db.getGeneralData(widget.inspectionId);
     if (data == null) {
-      final company = await _db.getCompanyDetails();
       final inspectorNames = companyInspectors.map((i) => i.name).toList();
       await _db.insertGeneralData(GeneralData(
         inspectionId: widget.inspectionId,
@@ -89,9 +91,14 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
         inspectorPhone: company?.phone ?? '',
         inspectorEmail: company?.email ?? '',
         inspectorContact: company?.contactPerson ?? '',
+        inspectorFinalResponsible: company?.finalResponsible ?? '',
         inspectors: _joinInspectors(inspectorNames),
       ));
       data = await _db.getGeneralData(widget.inspectionId);
+    } else if (data.inspectorFinalResponsible.isEmpty &&
+        (company?.finalResponsible.isNotEmpty ?? false)) {
+      data = data.copyWith(inspectorFinalResponsible: company!.finalResponsible);
+      await _db.updateGeneralData(data);
     }
 
     if (data != null) {
@@ -115,9 +122,12 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       _inspectorPhone.text = data.inspectorPhone;
       _inspectorEmail.text = data.inspectorEmail;
       _inspectorContact.text = data.inspectorContact;
+      _inspectorFinalResponsible.text = data.inspectorFinalResponsible;
     }
 
     setState(() {
+      _selectedAuthor =
+          (data?.inspectorAuthor.isNotEmpty ?? false) ? data!.inspectorAuthor : null;
       _data = data;
       _companyInspectors = companyInspectors;
       _selectedInspectors = _parseInspectors(data?.inspectors ?? '');
@@ -151,6 +161,8 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
       inspectorPhone: _inspectorPhone.text,
       inspectorEmail: _inspectorEmail.text,
       inspectorContact: _inspectorContact.text,
+      inspectorFinalResponsible: _inspectorFinalResponsible.text,
+      inspectorAuthor: _selectedAuthor ?? '',
       inspectors: _joinInspectors(_orderedSelectedInspectors()),
       measurementInstruments: _joinInstrumentIds(_selectedInstrumentIds),
     );
@@ -232,6 +244,7 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
     _inspectorPhone.dispose();
     _inspectorEmail.dispose();
     _inspectorContact.dispose();
+    _inspectorFinalResponsible.dispose();
     super.dispose();
   }
 
@@ -364,6 +377,51 @@ class _GeneralDataPageState extends State<GeneralDataPage> {
               controller: _inspectorContact,
               onChanged: (_) => _autoSave(),
             ),
+            CustomTextField(
+              label: l10n.finalResponsible,
+              controller: _inspectorFinalResponsible,
+              onChanged: (_) => _autoSave(),
+            ),
+            Builder(builder: (context) {
+              final names = _companyInspectors.map((i) => i.name).toList();
+              final items = <String>[...names];
+              if (_selectedAuthor != null &&
+                  _selectedAuthor!.isNotEmpty &&
+                  !items.contains(_selectedAuthor)) {
+                items.add(_selectedAuthor!);
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedAuthor,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.author,
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 12.0),
+                    suffixIcon: (_selectedAuthor != null &&
+                            _selectedAuthor!.isNotEmpty)
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() => _selectedAuthor = null);
+                              _autoSave();
+                            },
+                          )
+                        : null,
+                  ),
+                  items: items
+                      .map((name) =>
+                          DropdownMenuItem(value: name, child: Text(name)))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _selectedAuthor = v);
+                    _autoSave();
+                  },
+                ),
+              );
+            }),
             const SizedBox(height: 8),
             Text(
               l10n.inspectors,

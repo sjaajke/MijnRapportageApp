@@ -23,6 +23,7 @@ class PhotoContainer extends StatelessWidget {
   final String? photoPath;
   final String label;
   final ValueChanged<String> onPhotoSelected;
+  final VoidCallback? onPhotoRemoved;
   final double? height;
   final double? width;
   final double? aspectRatio;
@@ -33,6 +34,7 @@ class PhotoContainer extends StatelessWidget {
     this.photoPath,
     this.label = 'Foto toevoegen',
     required this.onPhotoSelected,
+    this.onPhotoRemoved,
     this.height = 200,
     this.width,
     this.aspectRatio,
@@ -41,6 +43,7 @@ class PhotoContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
     final photoBox = Container(
       height: aspectRatio == null ? height : null,
       width: width ?? double.infinity,
@@ -49,7 +52,7 @@ class PhotoContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         color: Colors.grey.shade100,
       ),
-      child: photoPath != null && File(photoPath!).existsSync()
+      child: hasPhoto
           ? ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.file(
@@ -74,6 +77,16 @@ class PhotoContainer extends StatelessWidget {
             ),
     );
 
+    final photoTile = GestureDetector(
+      onTap: () => _showPhotoOptions(context),
+      child: aspectRatio == null
+          ? photoBox
+          : AspectRatio(
+              aspectRatio: aspectRatio!,
+              child: photoBox,
+            ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Column(
@@ -86,15 +99,31 @@ class PhotoContainer extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 12, color: Colors.grey)),
             ),
-          GestureDetector(
-            onTap: () => _showPhotoOptions(context),
-            child: aspectRatio == null
-                ? photoBox
-                : AspectRatio(
-                    aspectRatio: aspectRatio!,
-                    child: photoBox,
+          if (hasPhoto && onPhotoRemoved != null)
+            Stack(
+              children: [
+                photoTile,
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Material(
+                    color: Colors.black54,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onPhotoRemoved,
+                      child: const Padding(
+                        padding: EdgeInsets.all(6.0),
+                        child: Icon(Icons.delete_outline,
+                            size: 18, color: Colors.white),
+                      ),
+                    ),
                   ),
-          ),
+                ),
+              ],
+            )
+          else
+            photoTile,
         ],
       ),
     );
