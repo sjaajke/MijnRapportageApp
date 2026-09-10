@@ -39,7 +39,6 @@ import 'bijlagen_list_page.dart';
 import 'herstelverklaring_page.dart';
 import 'herstel_overview_page.dart';
 import 'meetgegevens_page.dart';
-import 'nen2767/nen2767_overview_page.dart';
 
 class InspectionMenuPage extends StatefulWidget {
   final int inspectionId;
@@ -371,19 +370,6 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                     MaterialPageRoute(
                       builder: (_) =>
                           HerstelOverviewPage(inspectionId: widget.inspectionId),
-                    ),
-                  ),
-                ),
-                _MenuCard(
-                  icon: Icons.foundation_outlined,
-                  title: 'Conditiemeting NEN 2767',
-                  subtitle:
-                      'Bouwkundige/installatietechnische conditiemeting volgens NEN 2767',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          Nen2767OverviewPage(inspectionId: widget.inspectionId),
                     ),
                   ),
                 ),
