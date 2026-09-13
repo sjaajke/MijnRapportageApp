@@ -23,6 +23,7 @@ import 'home_page.dart';
 import 'inspection_menu_page.dart';
 import 'switchboard_detail_page.dart';
 import 'solar_installations_list_page.dart';
+import 'noodverlichting_list_page.dart';
 import 'defects_list_page.dart';
 
 /// Below this content width the page shows the switchboard list full-screen
@@ -308,6 +309,9 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.solar_power, 'Zonnestroom',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
+            _btn(context, Icons.emergency, 'Noodverlichting',
+                () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => NoodverlichtingListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.warning_amber, 'Gebreken',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => DefectsListPage(inspectionId: inspectionId)))),

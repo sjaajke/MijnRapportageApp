@@ -31,6 +31,7 @@ import '../models/general_data.dart';
 import '../models/herstel.dart';
 import '../models/hoofdschakelaar_entry.dart';
 import '../models/measurement_instrument.dart';
+import '../models/noodverlichting_installation.dart';
 import '../models/solar_installation.dart';
 import '../models/solar_inverter.dart';
 import '../models/solar_string_measurement.dart';
@@ -163,6 +164,328 @@ class PdfExportService {
     );
   }
 
+  /// Positioned title page layout matching the in-app preview. Shared by
+  /// [generatePdf] and [generateNoodverlichtingPdf].
+  pw.Page _buildTitlePage({
+    required TitlePage? titlePage,
+    required CompanyDetails? companyDetails,
+    required GeneralData? generalData,
+  }) {
+    final effectiveLogoPath =
+        (titlePage?.logoTitelpaginaPath?.isNotEmpty == true)
+        ? titlePage!.logoTitelpaginaPath
+        : companyDetails?.logoTitelpaginaPath;
+
+    return pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: pw.EdgeInsets.zero,
+      build: (context) {
+        final pageW = PdfPageFormat.a4.width;
+        final pageH = PdfPageFormat.a4.height;
+
+        // Places a child at fractional center/size coordinates.
+        pw.Widget block(
+          double cx,
+          double cy,
+          double fw,
+          double fh,
+          pw.Widget child,
+        ) {
+          final bw = fw * pageW;
+          final bh = fh * pageH;
+          return pw.Positioned(
+            left: cx * pageW - bw / 2,
+            top: cy * pageH - bh / 2,
+            child: pw.SizedBox(width: bw, height: bh, child: child),
+          );
+        }
+
+        final tp = titlePage;
+
+        return pw.Stack(
+          children: [
+            // ── Logo as full-page background ──────────────────────────
+            if (effectiveLogoPath != null &&
+                File(effectiveLogoPath).existsSync())
+              pw.Positioned(
+                left: 0,
+                top: 0,
+                child: pw.SizedBox(
+                  width: pageW,
+                  height: pageH,
+                  child: pw.Image(
+                    pw.MemoryImage(File(effectiveLogoPath).readAsBytesSync()),
+                    fit: pw.BoxFit.cover,
+                  ),
+                ),
+              ),
+
+            // ── Photo ─────────────────────────────────────────────────
+            if (tp?.photoPath != null && File(tp!.photoPath!).existsSync())
+              block(
+                tp.photoX,
+                tp.photoY,
+                tp.photoW,
+                tp.photoH,
+                pw.Image(
+                  pw.MemoryImage(File(tp.photoPath!).readAsBytesSync()),
+                  fit: pw.BoxFit.cover,
+                ),
+              ),
+
+            // ── Title ─────────────────────────────────────────────────
+            if (tp != null)
+              block(
+                tp.titleX,
+                tp.titleY,
+                tp.titleW,
+                tp.titleH,
+                pw.Align(
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    tp.title,
+                    style: pw.TextStyle(
+                      fontSize: 22,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+              ),
+
+            // ── Subtitle ──────────────────────────────────────────────
+            if (tp != null && tp.subtitle.isNotEmpty)
+              block(
+                tp.subtitleX,
+                tp.subtitleY,
+                tp.subtitleW,
+                tp.subtitleH,
+                pw.Align(
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    tp.subtitle,
+                    style: const pw.TextStyle(fontSize: 14),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+              ),
+
+            // ── Date ──────────────────────────────────────────────────
+            if (tp != null && tp.inspectionDate.isNotEmpty)
+              block(
+                tp.dateX,
+                tp.dateY,
+                tp.dateW,
+                tp.dateH,
+                pw.Text(
+                  tp.inspectionDateEnd.isNotEmpty
+                      ? 'Datum: ${tp.inspectionDate} t/m ${tp.inspectionDateEnd}'
+                      : 'Datum: ${tp.inspectionDate}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    color: tp.dateColorWhite
+                        ? PdfColors.white
+                        : PdfColors.black,
+                  ),
+                ),
+              ),
+
+            // ── Identification code ────────────────────────────────────
+            if (tp != null && tp.identificationCode.isNotEmpty)
+              block(
+                tp.codeX,
+                tp.codeY,
+                tp.codeW,
+                tp.codeH,
+                pw.Text(
+                  'Identificatiecode: ${tp.identificationCode}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    color: tp.codeColorWhite
+                        ? PdfColors.white
+                        : PdfColors.black,
+                  ),
+                ),
+              ),
+
+            // ── Project number ────────────────────────────────────────
+            if (tp != null && tp.projectNumber.isNotEmpty)
+              block(
+                tp.projectX,
+                tp.projectY,
+                tp.projectW,
+                tp.projectH,
+                pw.Text(
+                  'Projectnummer: ${tp.projectNumber}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    color: tp.projectColorWhite
+                        ? PdfColors.white
+                        : PdfColors.black,
+                  ),
+                ),
+              ),
+
+            // ── Inspectieadres Naam ───────────────────────────────────
+            if (tp != null &&
+                generalData != null &&
+                generalData.inspectionAddressName.isNotEmpty)
+              block(
+                tp.addressNameX,
+                tp.addressNameY,
+                tp.addressNameW,
+                tp.addressNameH,
+                pw.Align(
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    generalData.inspectionAddressName,
+                    style: const pw.TextStyle(
+                      fontSize: 25,
+                      color: PdfColors.white,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+              ),
+
+            // ── SCIOS logo ────────────────────────────────────────────
+            if (tp != null &&
+                tp.showSciosLogo &&
+                companyDetails?.logoSciosPath != null &&
+                File(companyDetails!.logoSciosPath!).existsSync())
+              block(
+                tp.logoX,
+                tp.logoY,
+                tp.logoW,
+                tp.logoH,
+                pw.Image(
+                  pw.MemoryImage(
+                    File(companyDetails.logoSciosPath!).readAsBytesSync(),
+                  ),
+                  fit: pw.BoxFit.contain,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Shared by [generatePdf] and [generateNoodverlichtingPdf].
+  pw.Page _buildAlgemeneGegevensPage({
+    required GeneralData generalData,
+    required List<MeasurementInstrument> allInstruments,
+    required Uint8List? headerLogoBytes,
+  }) {
+    return pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      header: (context) => _logoHeader(headerLogoBytes),
+      build: (context) => [
+        _sectionTitle('Algemene Gegevens'),
+        pw.SizedBox(height: 10),
+        if (generalData.clientCompany.isNotEmpty ||
+            generalData.clientAddress.isNotEmpty ||
+            generalData.clientPostalCity.isNotEmpty ||
+            generalData.clientContact.isNotEmpty ||
+            generalData.clientPhone.isNotEmpty ||
+            generalData.clientEmail.isNotEmpty) ...[
+          _subTitle('Opdrachtgever'),
+          if (generalData.clientCompany.isNotEmpty)
+            _labelValue('Naam Bedrijf', generalData.clientCompany),
+          if (generalData.clientAddress.isNotEmpty)
+            _labelValue('Adres', generalData.clientAddress),
+          if (generalData.clientPostalCity.isNotEmpty)
+            _labelValue('Postcode Plaats', generalData.clientPostalCity),
+          if (generalData.clientContact.isNotEmpty)
+            _labelValue('Contactpersoon', generalData.clientContact),
+          if (generalData.clientPhone.isNotEmpty)
+            _labelValue('Telefoonnummer', generalData.clientPhone),
+          if (generalData.clientEmail.isNotEmpty)
+            _labelValue('Mail', generalData.clientEmail),
+          pw.SizedBox(height: 10),
+        ],
+        if (generalData.installationResponsibleName.isNotEmpty ||
+            generalData.installationResponsiblePhone.isNotEmpty) ...[
+          _subTitle('Installatieverantwoordelijke'),
+          if (generalData.installationResponsibleName.isNotEmpty)
+            _labelValue(
+              'Installatieverantwoordelijke',
+              generalData.installationResponsibleName,
+            ),
+          if (generalData.installationResponsiblePhone.isNotEmpty)
+            _labelValue(
+              'Telefoonnummer',
+              generalData.installationResponsiblePhone,
+            ),
+          pw.SizedBox(height: 10),
+        ],
+        if (generalData.inspectionAddressName.isNotEmpty ||
+            generalData.inspectionAddressStreet.isNotEmpty ||
+            generalData.inspectionAddressPostalCity.isNotEmpty ||
+            generalData.inspectionAddressContact.isNotEmpty ||
+            generalData.inspectionAddressPhone.isNotEmpty ||
+            generalData.inspectionAddressEmail.isNotEmpty) ...[
+          _subTitle('Inspectieadres'),
+          if (generalData.inspectionAddressName.isNotEmpty)
+            _labelValue('Naam', generalData.inspectionAddressName),
+          if (generalData.inspectionAddressStreet.isNotEmpty)
+            _labelValue('Adres', generalData.inspectionAddressStreet),
+          if (generalData.inspectionAddressPostalCity.isNotEmpty)
+            _labelValue(
+              'Postcode Plaats',
+              generalData.inspectionAddressPostalCity,
+            ),
+          if (generalData.inspectionAddressContact.isNotEmpty)
+            _labelValue('Contactpersoon', generalData.inspectionAddressContact),
+          if (generalData.inspectionAddressPhone.isNotEmpty)
+            _labelValue('Telefoonnummer', generalData.inspectionAddressPhone),
+          if (generalData.inspectionAddressEmail.isNotEmpty)
+            _labelValue('Mail', generalData.inspectionAddressEmail),
+          pw.SizedBox(height: 10),
+        ],
+        if (generalData.inspectorCompany.isNotEmpty ||
+            generalData.inspectorAddress.isNotEmpty ||
+            generalData.inspectorPostalCity.isNotEmpty ||
+            generalData.inspectorPhone.isNotEmpty ||
+            generalData.inspectorEmail.isNotEmpty ||
+            generalData.inspectorContact.isNotEmpty ||
+            generalData.inspectorFinalResponsible.isNotEmpty ||
+            generalData.inspectorAuthor.isNotEmpty ||
+            generalData.inspectors.isNotEmpty) ...[
+          _subTitle('Inspectiebedrijf'),
+          if (generalData.inspectorCompany.isNotEmpty)
+            _labelValue('Naam bedrijf', generalData.inspectorCompany),
+          if (generalData.inspectorAddress.isNotEmpty)
+            _labelValue('Adres', generalData.inspectorAddress),
+          if (generalData.inspectorPostalCity.isNotEmpty)
+            _labelValue('Postcode Plaats', generalData.inspectorPostalCity),
+          if (generalData.inspectorPhone.isNotEmpty)
+            _labelValue('Telefoon', generalData.inspectorPhone),
+          if (generalData.inspectorEmail.isNotEmpty)
+            _labelValue('Mail', generalData.inspectorEmail),
+          if (generalData.inspectorContact.isNotEmpty)
+            _labelValue('Contactpersoon', generalData.inspectorContact),
+          if (generalData.inspectorFinalResponsible.isNotEmpty)
+            _labelValue(
+              'Eindverantwoordelijke',
+              generalData.inspectorFinalResponsible,
+            ),
+          if (generalData.inspectorAuthor.isNotEmpty)
+            _labelValue('Auteur', generalData.inspectorAuthor),
+          if (generalData.inspectors.isNotEmpty)
+            _labelValue('Inspecteur(s)', generalData.inspectors),
+        ],
+        if (allInstruments.isNotEmpty) ...[
+          pw.SizedBox(height: 12),
+          _subTitle('Meetinstrumenten'),
+          pw.SizedBox(height: 4),
+          _instrumentsTable(allInstruments),
+        ],
+      ],
+    );
+  }
+
   Future<String> generatePdf(int inspectionId) async {
     final titlePage = await _db.getTitlePage(inspectionId);
     final companyDetails = await _db.getCompanyDetails();
@@ -274,205 +597,11 @@ class PdfExportService {
         ? File(companyDetails.logoPath!).readAsBytesSync()
         : null;
 
-    // Title page — positioned layout matching the in-app preview
-    final effectiveLogoPath =
-        (titlePage?.logoTitelpaginaPath?.isNotEmpty == true)
-        ? titlePage!.logoTitelpaginaPath
-        : companyDetails?.logoTitelpaginaPath;
-
     pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.zero,
-        build: (context) {
-          final pageW = PdfPageFormat.a4.width;
-          final pageH = PdfPageFormat.a4.height;
-
-          // Places a child at fractional center/size coordinates.
-          pw.Widget block(
-            double cx,
-            double cy,
-            double fw,
-            double fh,
-            pw.Widget child,
-          ) {
-            final bw = fw * pageW;
-            final bh = fh * pageH;
-            return pw.Positioned(
-              left: cx * pageW - bw / 2,
-              top: cy * pageH - bh / 2,
-              child: pw.SizedBox(width: bw, height: bh, child: child),
-            );
-          }
-
-          final tp = titlePage;
-
-          return pw.Stack(
-            children: [
-              // ── Logo as full-page background ──────────────────────────
-              if (effectiveLogoPath != null &&
-                  File(effectiveLogoPath).existsSync())
-                pw.Positioned(
-                  left: 0,
-                  top: 0,
-                  child: pw.SizedBox(
-                    width: pageW,
-                    height: pageH,
-                    child: pw.Image(
-                      pw.MemoryImage(File(effectiveLogoPath).readAsBytesSync()),
-                      fit: pw.BoxFit.cover,
-                    ),
-                  ),
-                ),
-
-              // ── Photo ─────────────────────────────────────────────────
-              if (tp?.photoPath != null && File(tp!.photoPath!).existsSync())
-                block(
-                  tp.photoX,
-                  tp.photoY,
-                  tp.photoW,
-                  tp.photoH,
-                  pw.Image(
-                    pw.MemoryImage(File(tp.photoPath!).readAsBytesSync()),
-                    fit: pw.BoxFit.cover,
-                  ),
-                ),
-
-              // ── Title ─────────────────────────────────────────────────
-              if (tp != null)
-                block(
-                  tp.titleX,
-                  tp.titleY,
-                  tp.titleW,
-                  tp.titleH,
-                  pw.Align(
-                    alignment: pw.Alignment.center,
-                    child: pw.Text(
-                      tp.title,
-                      style: pw.TextStyle(
-                        fontSize: 22,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                  ),
-                ),
-
-              // ── Subtitle ──────────────────────────────────────────────
-              if (tp != null && tp.subtitle.isNotEmpty)
-                block(
-                  tp.subtitleX,
-                  tp.subtitleY,
-                  tp.subtitleW,
-                  tp.subtitleH,
-                  pw.Align(
-                    alignment: pw.Alignment.center,
-                    child: pw.Text(
-                      tp.subtitle,
-                      style: const pw.TextStyle(fontSize: 14),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                  ),
-                ),
-
-              // ── Date ──────────────────────────────────────────────────
-              if (tp != null && tp.inspectionDate.isNotEmpty)
-                block(
-                  tp.dateX,
-                  tp.dateY,
-                  tp.dateW,
-                  tp.dateH,
-                  pw.Text(
-                    tp.inspectionDateEnd.isNotEmpty
-                        ? 'Datum: ${tp.inspectionDate} t/m ${tp.inspectionDateEnd}'
-                        : 'Datum: ${tp.inspectionDate}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      color: tp.dateColorWhite
-                          ? PdfColors.white
-                          : PdfColors.black,
-                    ),
-                  ),
-                ),
-
-              // ── Identification code ────────────────────────────────────
-              if (tp != null && tp.identificationCode.isNotEmpty)
-                block(
-                  tp.codeX,
-                  tp.codeY,
-                  tp.codeW,
-                  tp.codeH,
-                  pw.Text(
-                    'Identificatiecode: ${tp.identificationCode}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      color: tp.codeColorWhite
-                          ? PdfColors.white
-                          : PdfColors.black,
-                    ),
-                  ),
-                ),
-
-              // ── Project number ────────────────────────────────────────
-              if (tp != null && tp.projectNumber.isNotEmpty)
-                block(
-                  tp.projectX,
-                  tp.projectY,
-                  tp.projectW,
-                  tp.projectH,
-                  pw.Text(
-                    'Projectnummer: ${tp.projectNumber}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      color: tp.projectColorWhite
-                          ? PdfColors.white
-                          : PdfColors.black,
-                    ),
-                  ),
-                ),
-
-              // ── Inspectieadres Naam ───────────────────────────────────
-              if (tp != null &&
-                  generalData != null &&
-                  generalData.inspectionAddressName.isNotEmpty)
-                block(
-                  tp.addressNameX,
-                  tp.addressNameY,
-                  tp.addressNameW,
-                  tp.addressNameH,
-                  pw.Align(
-                    alignment: pw.Alignment.center,
-                    child: pw.Text(
-                      generalData.inspectionAddressName,
-                      style: const pw.TextStyle(
-                        fontSize: 25,
-                        color: PdfColors.white,
-                      ),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                  ),
-                ),
-
-              // ── SCIOS logo ────────────────────────────────────────────
-              if (tp != null &&
-                  tp.showSciosLogo &&
-                  companyDetails?.logoSciosPath != null &&
-                  File(companyDetails!.logoSciosPath!).existsSync())
-                block(
-                  tp.logoX,
-                  tp.logoY,
-                  tp.logoW,
-                  tp.logoH,
-                  pw.Image(
-                    pw.MemoryImage(
-                      File(companyDetails.logoSciosPath!).readAsBytesSync(),
-                    ),
-                    fit: pw.BoxFit.contain,
-                  ),
-                ),
-            ],
-          );
-        },
+      _buildTitlePage(
+        titlePage: titlePage,
+        companyDetails: companyDetails,
+        generalData: generalData,
       ),
     );
 
@@ -486,7 +615,7 @@ class PdfExportService {
           build: (context) => [
             _sectionTitle('Inleiding'),
             pw.SizedBox(height: 10),
-            _textBlock(details.inleiding),
+            _formattedTextBlock(details.inleiding),
           ],
         ),
       );
@@ -495,118 +624,10 @@ class PdfExportService {
     // General Data page
     if (generalData != null) {
       pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(40),
-          header: (context) => _logoHeader(headerLogoBytes),
-          build: (context) => [
-            _sectionTitle('Algemene Gegevens'),
-            pw.SizedBox(height: 10),
-            if (generalData.clientCompany.isNotEmpty ||
-                generalData.clientAddress.isNotEmpty ||
-                generalData.clientPostalCity.isNotEmpty ||
-                generalData.clientContact.isNotEmpty ||
-                generalData.clientPhone.isNotEmpty ||
-                generalData.clientEmail.isNotEmpty) ...[
-              _subTitle('Opdrachtgever'),
-              if (generalData.clientCompany.isNotEmpty)
-                _labelValue('Naam Bedrijf', generalData.clientCompany),
-              if (generalData.clientAddress.isNotEmpty)
-                _labelValue('Adres', generalData.clientAddress),
-              if (generalData.clientPostalCity.isNotEmpty)
-                _labelValue('Postcode Plaats', generalData.clientPostalCity),
-              if (generalData.clientContact.isNotEmpty)
-                _labelValue('Contactpersoon', generalData.clientContact),
-              if (generalData.clientPhone.isNotEmpty)
-                _labelValue('Telefoonnummer', generalData.clientPhone),
-              if (generalData.clientEmail.isNotEmpty)
-                _labelValue('Mail', generalData.clientEmail),
-              pw.SizedBox(height: 10),
-            ],
-            if (generalData.installationResponsibleName.isNotEmpty ||
-                generalData.installationResponsiblePhone.isNotEmpty) ...[
-              _subTitle('Installatieverantwoordelijke'),
-              if (generalData.installationResponsibleName.isNotEmpty)
-                _labelValue(
-                  'Installatieverantwoordelijke',
-                  generalData.installationResponsibleName,
-                ),
-              if (generalData.installationResponsiblePhone.isNotEmpty)
-                _labelValue(
-                  'Telefoonnummer',
-                  generalData.installationResponsiblePhone,
-                ),
-              pw.SizedBox(height: 10),
-            ],
-            if (generalData.inspectionAddressName.isNotEmpty ||
-                generalData.inspectionAddressStreet.isNotEmpty ||
-                generalData.inspectionAddressPostalCity.isNotEmpty ||
-                generalData.inspectionAddressContact.isNotEmpty ||
-                generalData.inspectionAddressPhone.isNotEmpty ||
-                generalData.inspectionAddressEmail.isNotEmpty) ...[
-              _subTitle('Inspectieadres'),
-              if (generalData.inspectionAddressName.isNotEmpty)
-                _labelValue('Naam', generalData.inspectionAddressName),
-              if (generalData.inspectionAddressStreet.isNotEmpty)
-                _labelValue('Adres', generalData.inspectionAddressStreet),
-              if (generalData.inspectionAddressPostalCity.isNotEmpty)
-                _labelValue(
-                  'Postcode Plaats',
-                  generalData.inspectionAddressPostalCity,
-                ),
-              if (generalData.inspectionAddressContact.isNotEmpty)
-                _labelValue(
-                  'Contactpersoon',
-                  generalData.inspectionAddressContact,
-                ),
-              if (generalData.inspectionAddressPhone.isNotEmpty)
-                _labelValue(
-                  'Telefoonnummer',
-                  generalData.inspectionAddressPhone,
-                ),
-              if (generalData.inspectionAddressEmail.isNotEmpty)
-                _labelValue('Mail', generalData.inspectionAddressEmail),
-              pw.SizedBox(height: 10),
-            ],
-            if (generalData.inspectorCompany.isNotEmpty ||
-                generalData.inspectorAddress.isNotEmpty ||
-                generalData.inspectorPostalCity.isNotEmpty ||
-                generalData.inspectorPhone.isNotEmpty ||
-                generalData.inspectorEmail.isNotEmpty ||
-                generalData.inspectorContact.isNotEmpty ||
-                generalData.inspectorFinalResponsible.isNotEmpty ||
-                generalData.inspectorAuthor.isNotEmpty ||
-                generalData.inspectors.isNotEmpty) ...[
-              _subTitle('Inspectiebedrijf'),
-              if (generalData.inspectorCompany.isNotEmpty)
-                _labelValue('Naam bedrijf', generalData.inspectorCompany),
-              if (generalData.inspectorAddress.isNotEmpty)
-                _labelValue('Adres', generalData.inspectorAddress),
-              if (generalData.inspectorPostalCity.isNotEmpty)
-                _labelValue('Postcode Plaats', generalData.inspectorPostalCity),
-              if (generalData.inspectorPhone.isNotEmpty)
-                _labelValue('Telefoon', generalData.inspectorPhone),
-              if (generalData.inspectorEmail.isNotEmpty)
-                _labelValue('Mail', generalData.inspectorEmail),
-              if (generalData.inspectorContact.isNotEmpty)
-                _labelValue('Contactpersoon', generalData.inspectorContact),
-              if (generalData.inspectorFinalResponsible.isNotEmpty)
-                _labelValue(
-                  'Eindverantwoordelijke',
-                  generalData.inspectorFinalResponsible,
-                ),
-              if (generalData.inspectorAuthor.isNotEmpty)
-                _labelValue('Auteur', generalData.inspectorAuthor),
-              if (generalData.inspectors.isNotEmpty)
-                _labelValue('Inspecteur(s)', generalData.inspectors),
-            ],
-            if (allInstruments.isNotEmpty) ...[
-              pw.SizedBox(height: 12),
-              _subTitle('Meetinstrumenten'),
-              pw.SizedBox(height: 4),
-              _instrumentsTable(allInstruments),
-            ],
-          ],
+        _buildAlgemeneGegevensPage(
+          generalData: generalData,
+          allInstruments: allInstruments,
+          headerLogoBytes: headerLogoBytes,
         ),
       );
     }
@@ -879,10 +900,7 @@ class PdfExportService {
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(40),
           header: (context) => _logoHeader(headerLogoBytes),
-          build: (context) => [
-            pw.SizedBox(height: 4),
-            switchboardBlock(sb),
-          ],
+          build: (context) => [pw.SizedBox(height: 4), switchboardBlock(sb)],
         ),
       );
     }
@@ -1869,6 +1887,486 @@ class PdfExportService {
     return filePath;
   }
 
+  String _noodverlichtingStatusLabel(String status) {
+    switch (status) {
+      case 'R':
+        return 'Rood';
+      case 'O':
+        return 'Oranje';
+      default:
+        return 'Groen';
+    }
+  }
+
+  PdfColor _noodverlichtingStatusColor(String status) {
+    switch (status) {
+      case 'R':
+        return PdfColors.red;
+      case 'O':
+        return PdfColors.orange;
+      default:
+        return PdfColors.green;
+    }
+  }
+
+  pw.Widget _noodverlichtingPhotoGrid(
+    NoodverlichtingInstallation inst, {
+    Set<String>? include,
+    int columns = 2,
+    bool showLabels = true,
+    double photoHeight = 110,
+  }) {
+    final photos =
+        <String, String?>{
+          'Accu': inst.photoAccuPath,
+          'Stekker aansluiting': inst.photoStekkerAansluitingPath,
+          'Afbeelding': inst.photoAfbeeldingPath,
+          'Type plaatje': inst.photoTypePlaatjePath,
+          'Gebruikt pictogram': inst.photoGebruiktPictogramPath,
+          'Afbeelding detail': inst.photoAfbeeldingDetailPath,
+        }..removeWhere(
+          (key, path) =>
+              path == null ||
+              !File(path).existsSync() ||
+              (include != null && !include.contains(key)),
+        );
+
+    if (photos.isEmpty) return pw.SizedBox.shrink();
+
+    final entries = photos.entries.toList();
+    final rows = <pw.Widget>[];
+    for (var i = 0; i < entries.length; i += columns) {
+      final rowEntries = entries.skip(i).take(columns).toList();
+      rows.add(
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            for (final e in rowEntries)
+              pw.Expanded(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(right: 8, bottom: 8),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      if (showLabels) ...[
+                        pw.Text(
+                          e.key,
+                          style: pw.TextStyle(
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                      ],
+                      pw.SizedBox(
+                        height: photoHeight,
+                        child: pw.Image(
+                          pw.MemoryImage(File(e.value!).readAsBytesSync()),
+                          fit: pw.BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (columns == 2 && rowEntries.length < columns)
+              pw.Expanded(child: pw.SizedBox()),
+          ],
+        ),
+      );
+    }
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: rows,
+    );
+  }
+
+  /// PDF Noodverlichting (extern/client): only the core identification and
+  /// technical fields, without internal planning/remarks data.
+  pw.Widget _noodverlichtingBlockExtern(NoodverlichtingInstallation inst) {
+    final nameCodeText = inst.nameCode.isNotEmpty
+        ? inst.nameCode
+        : (inst.componentNr != null
+              ? 'Noodverlichting component ${inst.componentNr}'
+              : 'Noodverlichting');
+    final title = inst.name.isNotEmpty
+        ? '$nameCodeText  ${inst.name}'
+        : nameCodeText;
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
+              decoration: pw.BoxDecoration(
+                color: _noodverlichtingStatusColor(inst.status),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Text(
+                _noodverlichtingStatusLabel(inst.status),
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+            ),
+            pw.SizedBox(width: 8),
+            pw.Expanded(child: _sectionTitle(title)),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        _labelValue(
+          'Locatie',
+          inst.locationFull.isEmpty ? '-' : inst.locationFull,
+          labelWidth: 140,
+        ),
+        pw.SizedBox(height: 6),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: 3,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _labelValue(
+                    'Merk',
+                    inst.merk.isEmpty ? '-' : inst.merk,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Lichtbron',
+                    inst.lichtbron.isEmpty ? '-' : inst.lichtbron,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Accu type',
+                    inst.accuType.isEmpty ? '-' : inst.accuType,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Type noodverlichting',
+                    inst.typeNoodverlichting.isEmpty
+                        ? '-'
+                        : inst.typeNoodverlichting,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Type steker',
+                    inst.typeSteker.isEmpty ? '-' : inst.typeSteker,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Functie',
+                    inst.functie.isEmpty ? '-' : inst.functie,
+                    labelWidth: 140,
+                  ),
+                  _labelValue(
+                    'Montage',
+                    inst.montage.isEmpty ? '-' : inst.montage,
+                    labelWidth: 140,
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 24),
+            pw.Expanded(
+              flex: 2,
+              child: _noodverlichtingPhotoGrid(
+                inst,
+                include: {'Afbeelding', 'Afbeelding detail'},
+                columns: 1,
+                showLabels: false,
+                photoHeight: 72,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// PDF Noodverlichting intern: all fields, including internal
+  /// planning/remarks data not shown to the client.
+  pw.Widget _noodverlichtingBlockIntern(NoodverlichtingInstallation inst) {
+    final nameCodeText = inst.nameCode.isNotEmpty
+        ? inst.nameCode
+        : (inst.componentNr != null
+              ? 'Noodverlichting component ${inst.componentNr}'
+              : 'Noodverlichting');
+    final title = inst.name.isNotEmpty
+        ? '$nameCodeText  ${inst.name}'
+        : nameCodeText;
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 3,
+              ),
+              decoration: pw.BoxDecoration(
+                color: _noodverlichtingStatusColor(inst.status),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Text(
+                _noodverlichtingStatusLabel(inst.status),
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+            ),
+            pw.SizedBox(width: 8),
+            pw.Expanded(child: _sectionTitle(title)),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        if (inst.componentNr != null)
+          _labelValue('Component nr', '${inst.componentNr}', labelWidth: 140),
+        _labelValue(
+          'Locatie',
+          inst.locationFull.isEmpty ? '-' : inst.locationFull,
+          labelWidth: 140,
+        ),
+        _labelValuePair(
+          'Merk',
+          inst.merk.isEmpty ? '-' : inst.merk,
+          'Lichtbron',
+          inst.lichtbron.isEmpty ? '-' : inst.lichtbron,
+        ),
+        _labelValuePair(
+          'Accu type',
+          inst.accuType.isEmpty ? '-' : inst.accuType,
+          'Type noodverlichting',
+          inst.typeNoodverlichting.isEmpty ? '-' : inst.typeNoodverlichting,
+        ),
+        _labelValuePair(
+          'Type steker',
+          inst.typeSteker.isEmpty ? '-' : inst.typeSteker,
+          'Hoogte',
+          inst.hoogte.isEmpty ? '-' : inst.hoogte,
+        ),
+        _labelValuePair(
+          'Functie',
+          inst.functie.isEmpty ? '-' : inst.functie,
+          'Montage',
+          inst.montage.isEmpty ? '-' : inst.montage,
+        ),
+        _labelValue(
+          'Chemie van de accu',
+          inst.chemieVanDeAccu.isEmpty ? '-' : inst.chemieVanDeAccu,
+          labelWidth: 140,
+        ),
+        pw.SizedBox(height: 6),
+        _labelValue('Type installatie', inst.typeInstallatie, labelWidth: 140),
+        _labelValue(
+          'Installatie onderdeel',
+          inst.installatieOnderdeel,
+          labelWidth: 140,
+        ),
+        _labelValue('Componentfunctie', inst.componentFunctie, labelWidth: 140),
+        pw.SizedBox(height: 6),
+        _labelValuePair(
+          'Jaar van aanleg',
+          inst.jaarVanAanleg.isEmpty ? '-' : inst.jaarVanAanleg,
+          'Inspectiedatum',
+          inst.inspectieDatum.isEmpty ? '-' : inst.inspectieDatum,
+        ),
+        _labelValuePair(
+          'Inspectie interval',
+          inst.inspectieInterval.isEmpty
+              ? '-'
+              : '${inst.inspectieInterval} jaar',
+          'Herinspectiedatum',
+          inst.herinspectieDatum.isEmpty ? '-' : inst.herinspectieDatum,
+        ),
+        if (inst.opmerkingOptie.isNotEmpty || inst.opmerking.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          _subTitle('Opmerking'),
+          if (inst.opmerkingOptie.isNotEmpty)
+            _labelValue(
+              'Opmerking (voorbeeld)',
+              inst.opmerkingOptie,
+              labelWidth: 140,
+            ),
+          if (inst.opmerking.isNotEmpty) _formattedTextBlock(inst.opmerking),
+        ],
+        pw.SizedBox(height: 10),
+        _noodverlichtingPhotoGrid(inst),
+      ],
+    );
+  }
+
+  /// PDF Noodverlichting (extern/client): Titel, Inleiding, Algemene
+  /// gegevens, Noodverlichting (one block per armatuur, core fields only)
+  /// and Constateringen.
+  Future<String> generateNoodverlichtingPdf(int inspectionId) =>
+      _buildNoodverlichtingPdf(
+        inspectionId,
+        blockBuilder: _noodverlichtingBlockExtern,
+        fileSuffix: 'noodverlichting',
+        itemsPerPage: 3,
+      );
+
+  /// PDF Noodverlichting intern: same structure, but each armatuur block
+  /// includes the full internal planning/remarks data as well.
+  Future<String> generateNoodverlichtingInternPdf(int inspectionId) =>
+      _buildNoodverlichtingPdf(
+        inspectionId,
+        blockBuilder: _noodverlichtingBlockIntern,
+        fileSuffix: 'noodverlichting_intern',
+        itemsPerPage: 2,
+      );
+
+  Future<String> _buildNoodverlichtingPdf(
+    int inspectionId, {
+    required pw.Widget Function(NoodverlichtingInstallation) blockBuilder,
+    required String fileSuffix,
+    required int itemsPerPage,
+  }) async {
+    final titlePage = await _db.getTitlePage(inspectionId);
+    final companyDetails = await _db.getCompanyDetails();
+    final generalData = await _db.getGeneralData(inspectionId);
+    final details = await _db.getInspectionDetail(inspectionId);
+    final allInstruments = await _db.getAllMeasurementInstruments();
+    final installations = await _db.getNoodverlichtingInstallations(
+      inspectionId,
+    );
+    final defects = await _db.getDefects(inspectionId);
+
+    final Map<int, List<DefectAnnotation>> annotationsByDefect = {};
+    for (final d in defects) {
+      if (d.hasAnnotations && d.id != null) {
+        annotationsByDefect[d.id!] = await _db.getAllAnnotationsForDefect(
+          d.id!,
+        );
+      }
+    }
+
+    final Map<int, String> tokenByDefect = {};
+    for (final d in defects) {
+      if (d.id != null) {
+        tokenByDefect[d.id!] = await _db.ensureHerstelToken(d.id!);
+      }
+    }
+
+    final pdf = pw.Document();
+
+    final headerLogoBytes =
+        companyDetails?.logoPath != null &&
+            File(companyDetails!.logoPath!).existsSync()
+        ? File(companyDetails.logoPath!).readAsBytesSync()
+        : null;
+
+    // Titel
+    pdf.addPage(
+      _buildTitlePage(
+        titlePage: titlePage,
+        companyDetails: companyDetails,
+        generalData: generalData,
+      ),
+    );
+
+    // Inleiding
+    if (details != null && details.inleiding.isNotEmpty) {
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          header: (context) => _logoHeader(headerLogoBytes),
+          build: (context) => [
+            _sectionTitle('Inleiding'),
+            pw.SizedBox(height: 10),
+            _formattedTextBlock(details.inleiding),
+          ],
+        ),
+      );
+    }
+
+    // Algemene gegevens
+    if (generalData != null) {
+      pdf.addPage(
+        _buildAlgemeneGegevensPage(
+          generalData: generalData,
+          allInstruments: allInstruments,
+          headerLogoBytes: headerLogoBytes,
+        ),
+      );
+    }
+
+    // Noodverlichting — one MultiPage per group of armaturen: a fixed
+    // pw.Page silently clips content that doesn't fit, so MultiPage instead
+    // flows overflow onto extra pages automatically (matches the
+    // switchboards export). A group that doesn't fit together simply spills
+    // the remaining armaturen onto a following page.
+    for (var i = 0; i < installations.length; i += itemsPerPage) {
+      final group = installations.skip(i).take(itemsPerPage).toList();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          header: (context) => _logoHeader(headerLogoBytes),
+          build: (context) => [
+            for (var j = 0; j < group.length; j++) ...[
+              if (j > 0) ...[
+                pw.SizedBox(height: 12),
+                pw.Divider(),
+                pw.SizedBox(height: 12),
+              ],
+              blockBuilder(group[j]),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Constateringen
+    if (defects.isNotEmpty) {
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          header: (context) => _logoHeader(headerLogoBytes),
+          build: (context) => [
+            _sectionTitle('Constateringen'),
+            pw.SizedBox(height: 10),
+            _defectsTable(defects),
+          ],
+        ),
+      );
+    }
+
+    _addDefectPhotoPages(
+      pdf,
+      defects,
+      annotationsByDefect,
+      null,
+      tokenByDefect,
+      companyDetails?.herstelWebDomain,
+    );
+
+    final dir = await PhotoService().getExportsDir();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final filePath = p.join(
+      dir,
+      '${inspectionId}_${fileSuffix}_$timestamp.pdf',
+    );
+    await File(filePath).writeAsBytes(await pdf.save());
+    await _db.updateInspectionStatus(inspectionId, 'exported');
+    return filePath;
+  }
+
   pw.Widget _defectsTable(List<Defect> defects) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey400),
@@ -1946,11 +2444,7 @@ class PdfExportService {
                         labelWidth: 110,
                       ),
                     if (d.naamCode.isNotEmpty)
-                      _labelValue(
-                        'Naam/code',
-                        d.naamCode,
-                        labelWidth: 110,
-                      ),
+                      _labelValue('Naam/code', d.naamCode, labelWidth: 110),
                   ],
                 ),
               ),
@@ -2708,23 +3202,23 @@ class PdfExportService {
     final entries = sb.hoofdschakelaars.isNotEmpty
         ? sb.hoofdschakelaars
         : (sb.protection.isNotEmpty ||
-                sb.mainSwitchCurrent != null ||
-                sb.mainSwitchPoles != null ||
-                sb.cableType != null ||
-                sb.cableCrossSection != null ||
-                sb.cableLength != null)
-            ? [
-                HoofdschakelaarEntry(
-                  id: 0,
-                  leidingType: sb.cableType ?? '',
-                  leidingDoorsnede: sb.cableCrossSection?.toString() ?? '',
-                  leidingLengte: sb.cableLength?.toString() ?? '',
-                  hoofdschakelaar: sb.mainSwitchCurrent?.toString() ?? '',
-                  aantalPolen: sb.mainSwitchPoles?.toString() ?? '',
-                  voorbeveiliging: sb.protection,
-                ),
-              ]
-            : const <HoofdschakelaarEntry>[];
+              sb.mainSwitchCurrent != null ||
+              sb.mainSwitchPoles != null ||
+              sb.cableType != null ||
+              sb.cableCrossSection != null ||
+              sb.cableLength != null)
+        ? [
+            HoofdschakelaarEntry(
+              id: 0,
+              leidingType: sb.cableType ?? '',
+              leidingDoorsnede: sb.cableCrossSection?.toString() ?? '',
+              leidingLengte: sb.cableLength?.toString() ?? '',
+              hoofdschakelaar: sb.mainSwitchCurrent?.toString() ?? '',
+              aantalPolen: sb.mainSwitchPoles?.toString() ?? '',
+              voorbeveiliging: sb.protection,
+            ),
+          ]
+        : const <HoofdschakelaarEntry>[];
 
     final multiple = entries.length > 1;
     final widgets = <pw.Widget>[];
@@ -2736,10 +3230,7 @@ class PdfExportService {
             padding: const pw.EdgeInsets.only(top: 4, bottom: 2),
             child: pw.Text(
               'Hoofdschakelaar ${i + 1}',
-              style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
             ),
           ),
         );
@@ -2817,7 +3308,7 @@ class PdfExportService {
   );
   static final RegExp _subListMarkerRegex = RegExp(r'^[0-9]+\.[0-9]+');
   static final RegExp _colorTagRegex = RegExp(
-    r'\[(ROOD|ORANJE|GEEL|BLAUW|PAARS)\]',
+    r'\[(ROOD|ORANJE|GEEL|BLAUW|PAARS|GROEN|GRIJS)\]',
     caseSensitive: false,
   );
   static const Map<String, String> _colorTagLabels = {
@@ -2826,6 +3317,8 @@ class PdfExportService {
     'GEEL': 'Geel',
     'BLAUW': 'Blauw',
     'PAARS': 'Paars',
+    'GROEN': 'Groen',
+    'GRIJS': 'Grijs',
   };
   static const Map<String, PdfColor> _colorTagColors = {
     'ROOD': PdfColors.red,
@@ -2833,11 +3326,13 @@ class PdfExportService {
     'GEEL': PdfColors.yellow700,
     'BLAUW': PdfColors.blue,
     'PAARS': PdfColors.purple,
+    'GROEN': PdfColors.green,
+    'GRIJS': PdfColors.grey,
   };
 
   /// Renders [text] as a single line, replacing any "[ROOD]", "[ORANJE]",
-  /// "[GEEL]", "[BLAUW]" or "[PAARS]" tag with the corresponding color name
-  /// shown in that color.
+  /// "[GEEL]", "[BLAUW]", "[PAARS]", "[GROEN]" or "[GRIJS]" tag with the
+  /// corresponding color name shown in that color.
   pw.Widget _richLine(String text, {double fontSize = 10}) {
     final spans = <pw.TextSpan>[];
     var start = 0;
@@ -2871,7 +3366,10 @@ class PdfExportService {
   /// so the item hangs indented under its marker instead of restarting at
   /// the page margin. A "2.1)"-style marker is treated as a sub-item of the
   /// preceding "2)" item and indented one level deeper.
-  pw.Widget _formattedTextBlock(String text, {bool preserveLineBreaks = false}) {
+  pw.Widget _formattedTextBlock(
+    String text, {
+    bool preserveLineBreaks = false,
+  }) {
     final widgets = <pw.Widget>[];
     String? currentMarker;
     StringBuffer? currentText;
@@ -2892,9 +3390,7 @@ class PdfExportService {
                     style: const pw.TextStyle(fontSize: 10),
                   ),
                 ),
-                pw.Expanded(
-                  child: _richLine(currentText.toString().trim()),
-                ),
+                pw.Expanded(child: _richLine(currentText.toString().trim())),
               ],
             ),
           ),

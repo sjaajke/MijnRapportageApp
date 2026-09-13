@@ -49,14 +49,19 @@ class AppLocalizations {
       ? 'Geen inspecties gevonden.\nMaak een nieuwe inspectie aan.'
       : 'No inspections found.\nCreate a new inspection.';
   String get exportXml => isNl ? 'Export XML' : 'Export XML';
-  String get generatePdf => isNl ? 'Genereer PDF' : 'Generate PDF';
+  String get generatePdf => isNl ? 'PDF Rapport' : 'Generate PDF';
   String get generateConstateriungPdf =>
-      isNl ? 'Genereer PDF Constatering' : 'Generate PDF Findings';
+      isNl ? 'PDF Constatering' : 'Generate PDF Findings';
   String get generateSwitchboardConstateriungPdf => isNl
-      ? 'Genereer PDF Schakel- en verdeelinrichten en constateringen'
+      ? 'PDF Schakel- en verdeelinrichtingen en constateringen'
       : 'Generate PDF Switchboards and findings';
   String get generateHerstelPdf =>
-      isNl ? 'Genereer PDF Herstel' : 'Generate PDF Repair';
+      isNl ? 'PDF Herstel' : 'PDF Repair';
+  String get generateNoodverlichtingPdf =>
+      isNl ? 'PDF Noodverlichting' : 'Generate PDF Emergency Lighting';
+  String get generateNoodverlichtingInternPdf => isNl
+      ? 'PDF Noodverlichting intern'
+      : 'Generate PDF Emergency Lighting (internal)';
   String get samplePdf => isNl ? 'Voorbeeld PDF' : 'Sample PDF';
   String xmlExported(String path) =>
       isNl ? 'XML geëxporteerd: $path' : 'XML exported: $path';
@@ -242,6 +247,7 @@ class AppLocalizations {
     required int inspectorsUpdated,
     required int instrumentsInserted,
     required int instrumentsUpdated,
+    bool layoutUpdated = false,
   }) {
     if (isNl) {
       final lines = <String>[
@@ -250,6 +256,9 @@ class AppLocalizations {
             : 'Bedrijfsinformatie niet gewijzigd',
         '$inspectorsInserted inspecteur(s) toegevoegd, $inspectorsUpdated bijgewerkt',
         '$instrumentsInserted meetinstrument(en) toegevoegd, $instrumentsUpdated bijgewerkt',
+        layoutUpdated
+            ? 'Titelpagina-layout bijgewerkt'
+            : 'Titelpagina-layout niet gewijzigd',
       ];
       return lines.join('\n');
     }
@@ -259,6 +268,9 @@ class AppLocalizations {
           : 'Company information unchanged',
       '$inspectorsInserted inspector(s) added, $inspectorsUpdated updated',
       '$instrumentsInserted measuring instrument(s) added, $instrumentsUpdated updated',
+      layoutUpdated
+          ? 'Title page layout updated'
+          : 'Title page layout unchanged',
     ];
     return lines.join('\n');
   }
@@ -631,6 +643,151 @@ class AppLocalizations {
   String get label => isNl ? 'Label' : 'Label';
   String get defectDescriptionHint =>
       isNl ? 'Beschrijving van het gebrek' : 'Description of the defect';
+
+  // ── Privacy screen ──────────────────────────────────────────────────────────
+
+  String get privacyPolicyMenuItem => isNl ? 'Privacybeleid' : 'Privacy Policy';
+  String get privacyTitel => isNl ? 'Privacybeleid' : 'Privacy Policy';
+  String get privacyBijgewerkt => isNl
+      ? 'Laatst bijgewerkt: 12 september 2026'
+      : 'Last updated: 12 September 2026';
+  String get privacyIntro => isNl
+      ? 'Dit privacybeleid beschrijft hoe MijnRapportage omgaat met gegevens. '
+          'MijnRapportage is een app voor het uitvoeren en vastleggen van periodieke '
+          'inspecties (o.a. elektrische installaties, zonne-installaties, schakelborden '
+          'en noodverlichting), ontwikkeld door Inspectieportal.'
+      : 'This privacy policy describes how MijnRapportage handles data. '
+          'MijnRapportage is an app for carrying out and recording periodic '
+          'inspections (including electrical installations, solar installations, '
+          'switchboards and emergency lighting), developed by Inspectieportal.';
+
+  String get privacy1Titel =>
+      isNl ? 'Gegevens die u zelf invoert' : 'Data you enter yourself';
+  String get privacy1Intro => isNl
+      ? 'Bij het gebruik van de App kunt u zelf gegevens invoeren, zoals:'
+      : 'When using the App you may enter data yourself, such as:';
+  static const List<String> privacy1BulletsNL = [
+    'Bedrijfsgegevens (naam, adres, contactpersoon, logo)',
+    'Namen van inspecteurs en eindverantwoordelijke',
+    'Adres- en gebouwgegevens van de inspectielocatie',
+    'Foto\'s en handtekeningen die u toevoegt aan een inspectie',
+    'Beschrijvingen van gebreken en constateringen',
+  ];
+  static const List<String> privacy1BulletsEN = [
+    'Company details (name, address, contact person, logo)',
+    'Names of inspectors and the final responsible person',
+    'Address and building details of the inspection location',
+    'Photos and signatures you add to an inspection',
+    'Descriptions of defects and findings',
+  ];
+  List<String> get privacy1Bullets =>
+      isNl ? privacy1BulletsNL : privacy1BulletsEN;
+  String get privacy1Slot => isNl
+      ? 'Deze gegevens worden uitsluitend gebruikt om uw inspectierapporten samen te stellen.'
+      : 'This data is used solely to compile your inspection reports.';
+
+  String get privacy2Titel => isNl ? 'Opslag van gegevens' : 'Storage of data';
+  String get privacy2Body => isNl
+      ? 'Alle gegevens die u invoert, worden lokaal opgeslagen op uw eigen apparaat, '
+          'in een lokale database en als bestanden (foto\'s, PDF\'s, Excel-bestanden). '
+          'Inspectieportal beheert geen server waarop deze gegevens worden bewaard en '
+          'heeft dan ook geen toegang tot uw inspectiegegevens.'
+      : 'All data you enter is stored locally on your own device, in a local '
+          'database and as files (photos, PDFs, Excel files). Inspectieportal does '
+          'not operate a server on which this data is stored and therefore has no '
+          'access to your inspection data.';
+
+  String get privacy3Titel =>
+      isNl ? 'Adresopzoeking via PDOK' : 'Address lookup via PDOK';
+  String get privacy3Body => isNl
+      ? 'Om bouwjaar, oppervlakte en andere gebouwgegevens op te zoeken, kan de App '
+          'een door u ingevoerd adres opsturen naar de gratis, sleutelloze diensten van '
+          'PDOK/Kadaster en 3DBAG (Nederlandse overheidsdiensten voor open geodata). '
+          'Hierbij worden geen andere persoonsgegevens meegestuurd. Op deze opzoeking '
+          'is het privacybeleid van PDOK/Kadaster van toepassing.'
+      : 'To look up construction year, floor area and other building data, the App '
+          'may send an address you entered to the free, keyless services of '
+          'PDOK/Kadaster and 3DBAG (Dutch government open geodata services). No '
+          'other personal data is sent along with this. This lookup is subject to '
+          'the privacy policy of PDOK/Kadaster.';
+
+  String get privacy4Titel => isNl
+      ? 'Herstelmeldingen via uw eigen Firebase-project (optioneel)'
+      : 'Repair confirmations via your own Firebase project (optional)';
+  String get privacy4Body => isNl
+      ? 'De App bevat een optionele functie waarmee een externe persoon (bijvoorbeeld '
+          'een gebouweigenaar) via een QR-code en webformulier kan aangeven dat een '
+          'gebrek is hersteld. Wanneer u deze functie gebruikt, configureert u hiervoor '
+          'een eigen Firebase-project (Firestore en Storage) via de pagina '
+          'Bedrijfsgegevens. De ingevulde gegevens (naam, datum, toelichting en '
+          'eventuele foto\'s) worden opgeslagen in uw eigen Firebase-project, niet bij '
+          'Inspectieportal. U bent zelf verantwoordelijk voor deze gegevens en voor een '
+          'juiste, AVG-conforme inrichting van uw Firebase-project.'
+      : 'The App includes an optional feature that lets an external person (for '
+          'example a building owner) confirm via a QR code and web form that a defect '
+          'has been repaired. If you use this feature, you configure your own '
+          'Firebase project (Firestore and Storage) on the Company Details page. The '
+          'submitted data (name, date, explanation and any photos) is stored in your '
+          'own Firebase project, not with Inspectieportal. You are responsible for '
+          'this data and for a correct, GDPR-compliant setup of your Firebase project.';
+
+  String get privacy5Titel => isNl ? 'Delen en exporteren' : 'Sharing and exporting';
+  String get privacy5Body => isNl
+      ? 'U kunt inspectierapporten exporteren als PDF, Excel- of ZIP-bestand en deze '
+          'zelf delen, bijvoorbeeld via e-mail of een cloudopslagdienst naar keuze. Dit '
+          'gebeurt alleen wanneer u dit zelf initieert; de App verstuurt deze bestanden '
+          'niet automatisch naar Inspectieportal of derden.'
+      : 'You can export inspection reports as PDF, Excel or ZIP files and share them '
+          'yourself, for example via email or a cloud storage service of your choice. '
+          'This only happens when you initiate it yourself; the App does not '
+          'automatically send these files to Inspectieportal or third parties.';
+
+  String get privacy6Titel => isNl
+      ? 'Geen tracking, analytics of advertenties'
+      : 'No tracking, analytics or advertising';
+  String get privacy6Body => isNl
+      ? 'De App maakt geen gebruik van analytics- of trackingdiensten, '
+          'advertentienetwerken of cookies.'
+      : 'The App does not use analytics or tracking services, advertising networks '
+          'or cookies.';
+
+  String get privacy7Titel =>
+      isNl ? 'Bewaren en verwijderen van gegevens' : 'Retention and deletion of data';
+  String get privacy7Body => isNl
+      ? 'Uw gegevens blijven op uw apparaat bewaard totdat u ze zelf verwijdert '
+          '(bijvoorbeeld door een inspectie of gebrek te verwijderen) of totdat u de '
+          'App verwijdert. Er vindt geen automatische verwijdering door Inspectieportal '
+          'plaats, omdat Inspectieportal geen toegang heeft tot deze gegevens.'
+      : 'Your data remains on your device until you delete it yourself (for example '
+          'by deleting an inspection or defect) or until you uninstall the App. '
+          'Inspectieportal does not automatically delete any data, since '
+          'Inspectieportal has no access to it.';
+
+  String get privacy8Titel => isNl ? 'Privacy van kinderen' : 'Children\'s privacy';
+  String get privacy8Body => isNl
+      ? 'De App is bedoeld voor professioneel gebruik door inspecteurs en is niet '
+          'gericht op kinderen. Inspectieportal verzamelt zelf geen gegevens en dus '
+          'ook geen gegevens van kinderen.'
+      : 'The App is intended for professional use by inspectors and is not directed '
+          'at children. Inspectieportal does not itself collect any data, and '
+          'therefore does not collect any data from children either.';
+
+  String get privacy9Titel =>
+      isNl ? 'Wijzigingen in dit privacybeleid' : 'Changes to this Privacy Policy';
+  String get privacy9Body => isNl
+      ? 'Wij kunnen dit privacybeleid van tijd tot tijd bijwerken. Eventuele '
+          'wijzigingen worden gepubliceerd via deze pagina met een bijgewerkte datum.'
+      : 'We may update this privacy policy from time to time. Any changes will be '
+          'published on this page with an updated date.';
+
+  String get privacy10Titel => isNl ? 'Contact' : 'Contact';
+  String get privacy10Body => isNl
+      ? 'Als u vragen heeft over dit privacybeleid, kunt u contact opnemen via:\n\n'
+          'Ontwikkelaar: Inspectieportal\n'
+          'E-mail: support@inspectieportal.nl'
+      : 'If you have questions about this Privacy Policy, you can contact us via:\n\n'
+          'Developer: Inspectieportal\n'
+          'Email: support@inspectieportal.nl';
 }
 
 class _AppLocalizationsDelegate

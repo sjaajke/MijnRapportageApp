@@ -30,6 +30,7 @@ import 'general_data_page.dart';
 import 'inspection_details_page.dart';
 import 'switchboards_list_page.dart';
 import 'solar_installations_list_page.dart';
+import 'noodverlichting_list_page.dart';
 import 'defects_list_page.dart';
 import 'download_page.dart';
 import 'eindbeoordeling_page.dart';
@@ -57,6 +58,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
   bool _loading = true;
   int _switchboardCount = 0;
   int _solarCount = 0;
+  int _noodverlichtingCount = 0;
   int _defectCount = 0;
   bool _hasMeldingGevaarlijk = false;
   String _status = 'draft';
@@ -75,6 +77,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       _db.getSolarInstallations(widget.inspectionId),
       _db.getDefects(widget.inspectionId),
       _db.getInspection(widget.inspectionId),
+      _db.getNoodverlichtingInstallations(widget.inspectionId),
     ]);
     setState(() {
       _templates = results[0] as List<ReportTemplate>;
@@ -90,6 +93,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
           defects.any((d) => d.classification == 'Rd');
       final inspection = results[5] as dynamic;
       _status = inspection?.status ?? 'draft';
+      _noodverlichtingCount = (results[6] as List).length;
       _loading = false;
     });
   }
@@ -336,6 +340,19 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                   ),
                 ),
                 _MenuCard(
+                  icon: Icons.emergency,
+                  title: 'Noodverlichting',
+                  subtitle: 'Inspecteer noodverlichtingsarmaturen',
+                  showEmptyIndicator: _noodverlichtingCount == 0,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NoodverlichtingListPage(
+                          inspectionId: widget.inspectionId),
+                    ),
+                  ),
+                ),
+                _MenuCard(
                   icon: Icons.battery_charging_full,
                   title: l10n.batteryInstallations,
                   subtitle: l10n.comingSoon,
@@ -547,6 +564,9 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.solar_power, 'Zonnestroom',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
+            _btn(context, Icons.emergency, 'Noodverlichting',
+                () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => NoodverlichtingListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.battery_charging_full, 'Accu',
                 () => ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Accu-installaties: binnenkort beschikbaar')))),

@@ -30,6 +30,7 @@ dependencies:
   archive: ^3.6.1
   pdfx: ^2.6.0
   shared_preferences: ^2.3.0
+  package_info_plus: ^10.2.1
   # Alleen gebruikt door het losse web-formulier entrypoint
   # (lib/main_herstel_web.dart) — de hoofdapp praat met Firebase via de
   # publieke REST API (zie herstel_sync_service.dart), niet via deze SDK's.

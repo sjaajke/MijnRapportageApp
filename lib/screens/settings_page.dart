@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'company_details_page.dart';
+import 'privacy_screen.dart';
 import 'rapport_constateringen_page.dart';
 import 'report_templates_page.dart';
 import 'standards_page.dart';
@@ -72,6 +73,16 @@ class SettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const RapportConstateringenPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: Text(l10n.privacyPolicyMenuItem),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrivacyScreen()),
               );
             },
           ),

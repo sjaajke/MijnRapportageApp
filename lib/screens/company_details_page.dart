@@ -22,11 +22,13 @@ import '../l10n/app_localizations.dart';
 import '../models/company_details.dart';
 import '../models/company_inspector.dart';
 import '../models/measurement_instrument.dart';
+import '../models/title_page.dart' as model;
 import '../services/company_details_export_service.dart';
 import '../services/database_service.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/photo_container.dart';
 import '../widgets/section_header.dart';
+import '../widgets/title_page_preview.dart';
 import 'measurement_instrument_page.dart';
 import 'inspector_detail_page.dart';
 
@@ -54,6 +56,8 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
   CompanyDetails? _details;
   List<CompanyInspector> _inspectors = [];
   List<MeasurementInstrument> _instruments = [];
+  model.TitlePage? _layoutDefaults;
+  bool _layoutLocked = false;
   bool _loading = true;
   bool _exporting = false;
   bool _importing = false;
@@ -74,6 +78,26 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
     }
     final inspectors = await _db.getCompanyInspectors();
     final instruments = await _db.getAllMeasurementInstruments();
+    final d = await _db.getTitlePageLayoutDefaults();
+    final layoutDefaults = model.TitlePage(
+      inspectionId: 0,
+      titleX: d?['title_x'] ?? 0.5, titleY: d?['title_y'] ?? 0.15,
+      titleW: d?['title_w'] ?? 0.80, titleH: d?['title_h'] ?? 0.10,
+      subtitleX: d?['subtitle_x'] ?? 0.5, subtitleY: d?['subtitle_y'] ?? 0.26,
+      subtitleW: d?['subtitle_w'] ?? 0.70, subtitleH: d?['subtitle_h'] ?? 0.07,
+      photoX: d?['photo_x'] ?? 0.5, photoY: d?['photo_y'] ?? 0.50,
+      photoW: d?['photo_w'] ?? 0.60, photoH: d?['photo_h'] ?? 0.35,
+      dateX: d?['date_x'] ?? 0.5, dateY: d?['date_y'] ?? 0.78,
+      dateW: d?['date_w'] ?? 0.70, dateH: d?['date_h'] ?? 0.065,
+      codeX: d?['code_x'] ?? 0.5, codeY: d?['code_y'] ?? 0.86,
+      codeW: d?['code_w'] ?? 0.70, codeH: d?['code_h'] ?? 0.065,
+      projectX: d?['project_x'] ?? 0.5, projectY: d?['project_y'] ?? 0.93,
+      projectW: d?['project_w'] ?? 0.70, projectH: d?['project_h'] ?? 0.065,
+      logoX: d?['logo_x'] ?? 0.82, logoY: d?['logo_y'] ?? 0.07,
+      logoW: d?['logo_w'] ?? 0.30, logoH: d?['logo_h'] ?? 0.12,
+      addressNameX: d?['address_name_x'] ?? 0.5, addressNameY: d?['address_name_y'] ?? 0.72,
+      addressNameW: d?['address_name_w'] ?? 0.70, addressNameH: d?['address_name_h'] ?? 0.065,
+    );
 
     if (details != null) {
       _companyName.text = details.companyName;
@@ -90,6 +114,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
 
     setState(() {
       _details = details;
+      _layoutDefaults = layoutDefaults;
       _inspectors = inspectors;
       _instruments = instruments;
       _loading = false;
@@ -112,6 +137,14 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
     );
     await _db.saveCompanyDetails(updated);
     _details = updated;
+  }
+
+  // ── Titelpagina: positie & afmetingen (standaard) ──────────────────────────
+
+  Future<void> _saveLayoutDefault(model.TitlePage updated) async {
+    await _db.saveTitlePageLayoutDefaults(updated);
+    if (!mounted) return;
+    setState(() => _layoutDefaults = updated);
   }
 
   Future<void> _refreshInspectors() async {
@@ -227,6 +260,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
         details: _details!,
         inspectors: _inspectors,
         instruments: _instruments,
+        layoutDefaults: _layoutDefaults,
       );
     } catch (e) {
       if (mounted) {
@@ -275,6 +309,7 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
                 inspectorsUpdated: result.inspectorsUpdated,
                 instrumentsInserted: result.instrumentsInserted,
                 instrumentsUpdated: result.instrumentsUpdated,
+                layoutUpdated: result.layoutUpdated,
               ),
             ),
             actions: [
@@ -463,6 +498,108 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
               ),
             ],
           ),
+
+          // ── Titelpagina: positie & afmetingen (standaard) ───────────────
+          SectionHeader(title: 'Titelpagina — positie & afmetingen'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text(
+              'Deze standaardlayout wordt gebruikt als startpunt voor de titelpagina '
+              'van elke nieuwe inspectie.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ),
+          if (_layoutDefaults != null) ...[
+            TitlePagePreview(
+              titlePage: _layoutDefaults!,
+              titleText: 'Titel',
+              subtitleText: 'Subtitel',
+              effectiveLogoPath: _details?.logoTitelpaginaPath,
+              sciosLogoPath: _details?.logoSciosPath,
+              addressNameText: 'Inspectieadres',
+              locked: _layoutLocked,
+              onToggleLock: () => setState(() => _layoutLocked = !_layoutLocked),
+              onLayoutChanged: _saveLayoutDefault,
+            ),
+            const SizedBox(height: 8),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: const Text(
+                  'Positie & afmetingen (voorbeeldpagina)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Titel',
+                    cx: _layoutDefaults!.titleX, cy: _layoutDefaults!.titleY,
+                    w: _layoutDefaults!.titleW, h: _layoutDefaults!.titleH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        titleX: cx, titleY: cy, titleW: w, titleH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Subtitel',
+                    cx: _layoutDefaults!.subtitleX, cy: _layoutDefaults!.subtitleY,
+                    w: _layoutDefaults!.subtitleW, h: _layoutDefaults!.subtitleH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        subtitleX: cx, subtitleY: cy, subtitleW: w, subtitleH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Foto',
+                    cx: _layoutDefaults!.photoX, cy: _layoutDefaults!.photoY,
+                    w: _layoutDefaults!.photoW, h: _layoutDefaults!.photoH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        photoX: cx, photoY: cy, photoW: w, photoH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Inspectiedatum',
+                    cx: _layoutDefaults!.dateX, cy: _layoutDefaults!.dateY,
+                    w: _layoutDefaults!.dateW, h: _layoutDefaults!.dateH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        dateX: cx, dateY: cy, dateW: w, dateH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Identificatiecode',
+                    cx: _layoutDefaults!.codeX, cy: _layoutDefaults!.codeY,
+                    w: _layoutDefaults!.codeW, h: _layoutDefaults!.codeH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        codeX: cx, codeY: cy, codeW: w, codeH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Projectnummer',
+                    cx: _layoutDefaults!.projectX, cy: _layoutDefaults!.projectY,
+                    w: _layoutDefaults!.projectW, h: _layoutDefaults!.projectH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        projectX: cx, projectY: cy, projectW: w, projectH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Inspectieadres',
+                    cx: _layoutDefaults!.addressNameX, cy: _layoutDefaults!.addressNameY,
+                    w: _layoutDefaults!.addressNameW, h: _layoutDefaults!.addressNameH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        addressNameX: cx, addressNameY: cy, addressNameW: w, addressNameH: h)),
+                  ),
+                  PositionSizeRow(
+                    locked: _layoutLocked,
+                    label: 'Logo (SCIOS)',
+                    cx: _layoutDefaults!.logoX, cy: _layoutDefaults!.logoY,
+                    w: _layoutDefaults!.logoW, h: _layoutDefaults!.logoH,
+                    onChanged: (cx, cy, w, h) => _saveLayoutDefault(_layoutDefaults!.copyWith(
+                        logoX: cx, logoY: cy, logoW: w, logoH: h)),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // ── Bedrijfsinformatie ─────────────────────────────────────────
           SectionHeader(title: l10n.companyInfo),

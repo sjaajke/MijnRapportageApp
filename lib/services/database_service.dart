@@ -27,6 +27,7 @@ import '../models/switchboard.dart';
 import '../models/solar_installation.dart';
 import '../models/solar_inverter.dart';
 import '../models/solar_string_measurement.dart';
+import '../models/noodverlichting_installation.dart';
 import '../models/defect.dart';
 import '../models/standard.dart';
 import '../models/defect_annotation.dart';
@@ -71,6 +72,7 @@ class DatabaseService {
   Future<void>? _ensureSolarInverterSchemaFuture;
   Future<void>? _ensureSolarStringMeasurementSchemaFuture;
   Future<void>? _ensureSolarVereffeningSchemaFuture;
+  Future<void>? _ensureNoodverlichtingSchemaFuture;
 
   Future<Database> get database {
     _databaseFuture ??= _initDatabase();
@@ -278,6 +280,103 @@ class DatabaseService {
         leiding_mm2 TEXT DEFAULT '',
         rlow TEXT DEFAULT '',
         FOREIGN KEY (solar_installation_id) REFERENCES solar_installations (id) ON DELETE CASCADE
+      )
+    ''');
+  }
+
+  Future<void> _ensureNoodverlichtingSchema() {
+    _ensureNoodverlichtingSchemaFuture ??= _doEnsureNoodverlichtingSchema();
+    return _ensureNoodverlichtingSchemaFuture!;
+  }
+
+  Future<void> _doEnsureNoodverlichtingSchema() async {
+    final db = await database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS noodverlichting_installations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        component_nr INTEGER,
+        name TEXT DEFAULT '',
+        name_code TEXT DEFAULT '',
+        location TEXT DEFAULT '',
+        location_a TEXT DEFAULT '',
+        location_b TEXT DEFAULT '',
+        merk TEXT DEFAULT '',
+        lichtbron TEXT DEFAULT '',
+        accu_type TEXT DEFAULT '',
+        type_noodverlichting TEXT DEFAULT '',
+        type_steker TEXT DEFAULT '',
+        hoogte TEXT DEFAULT '',
+        functie TEXT DEFAULT '',
+        montage TEXT DEFAULT '',
+        chemie_van_de_accu TEXT DEFAULT '',
+        type_installatie TEXT DEFAULT 'Noodverlichtingsinstallatie',
+        installatie_onderdeel TEXT DEFAULT 'Noodverlichting',
+        component_functie TEXT DEFAULT 'Noodverlichting',
+        jaar_van_aanleg TEXT DEFAULT '',
+        inspectie_datum TEXT DEFAULT '',
+        inspectie_interval TEXT DEFAULT '',
+        photo_accu_path TEXT,
+        photo_stekker_aansluiting_path TEXT,
+        photo_afbeelding_path TEXT,
+        photo_type_plaatje_path TEXT,
+        photo_gebruikt_pictogram_path TEXT,
+        photo_afbeelding_detail_path TEXT,
+        status TEXT DEFAULT 'G',
+        opmerking_optie TEXT DEFAULT '',
+        opmerking TEXT DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+      )
+    ''');
+    final installationCols =
+        await db.rawQuery("PRAGMA table_info(noodverlichting_installations)");
+    final existingInstallationCols =
+        installationCols.map((c) => c['name'] as String).toSet();
+    final installationColsToAdd = {
+      'component_nr': "INTEGER",
+      'name_code': "TEXT DEFAULT ''",
+      'type_steker': "TEXT DEFAULT ''",
+      'type_installatie': "TEXT DEFAULT 'Noodverlichtingsinstallatie'",
+      'installatie_onderdeel': "TEXT DEFAULT 'Noodverlichting'",
+      'component_functie': "TEXT DEFAULT 'Noodverlichting'",
+      'jaar_van_aanleg': "TEXT DEFAULT ''",
+      'inspectie_datum': "TEXT DEFAULT ''",
+      'inspectie_interval': "TEXT DEFAULT ''",
+      'status': "TEXT DEFAULT 'G'",
+      'opmerking_optie': "TEXT DEFAULT ''",
+    };
+    for (final entry in installationColsToAdd.entries) {
+      if (!existingInstallationCols.contains(entry.key)) {
+        await db.execute(
+          "ALTER TABLE noodverlichting_installations ADD COLUMN ${entry.key} ${entry.value}",
+        );
+      }
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS noodverlichting_defecten (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        noodverlichting_installation_id INTEGER NOT NULL,
+        type_installatie TEXT DEFAULT 'Noodverlichtingsinstallatie',
+        installatie_onderdeel TEXT DEFAULT 'Noodverlichting',
+        component_functie TEXT DEFAULT 'Noodverlichting',
+        locatie1 TEXT DEFAULT '',
+        locatie2 TEXT DEFAULT '',
+        locatie3 TEXT DEFAULT '',
+        jaar_van_aanleg TEXT DEFAULT '',
+        inspectie_datum TEXT DEFAULT '',
+        inspectie_interval TEXT DEFAULT '',
+        herinspectie_datum TEXT DEFAULT '',
+        nivo TEXT DEFAULT '',
+        status TEXT DEFAULT 'G',
+        armaturen TEXT DEFAULT '',
+        armaturen_detail TEXT DEFAULT '',
+        opmerking_optie TEXT DEFAULT '',
+        opmerking TEXT DEFAULT '',
+        photo1_path TEXT,
+        photo2_path TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (noodverlichting_installation_id) REFERENCES noodverlichting_installations (id) ON DELETE CASCADE
       )
     ''');
   }
@@ -2673,6 +2772,100 @@ class DatabaseService {
   Future<void> deleteSolarInstallation(int id) async {
     final db = await database;
     await db.delete('solar_installations', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Noodverlichting Installations ──
+
+  Future<int> insertNoodverlichtingInstallation(
+      NoodverlichtingInstallation installation) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    final id = await db.insert(
+        'noodverlichting_installations', installation.toMap());
+    await _updateInspectionTimestamp(installation.inspectionId);
+    return id;
+  }
+
+  Future<List<NoodverlichtingInstallation>> getNoodverlichtingInstallations(
+      int inspectionId) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    final maps = await db.query(
+      'noodverlichting_installations',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+      orderBy: 'sort_order ASC, id ASC',
+    );
+    return maps.map((m) => NoodverlichtingInstallation.fromMap(m)).toList();
+  }
+
+  Future<NoodverlichtingInstallation?> getNoodverlichtingInstallation(
+      int id) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    final maps = await db.query(
+      'noodverlichting_installations',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return NoodverlichtingInstallation.fromMap(maps.first);
+  }
+
+  Future<void> updateNoodverlichtingInstallation(
+      NoodverlichtingInstallation installation) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    await db.update(
+      'noodverlichting_installations',
+      installation.toMap(),
+      where: 'id = ?',
+      whereArgs: [installation.id],
+    );
+    await _updateInspectionTimestamp(installation.inspectionId);
+  }
+
+  Future<void> deleteNoodverlichtingInstallation(int id) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    await db.delete('noodverlichting_defecten',
+        where: 'noodverlichting_installation_id = ?', whereArgs: [id]);
+    await db.delete('noodverlichting_installations',
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteAllNoodverlichtingInstallations(int inspectionId) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    final installations = await getNoodverlichtingInstallations(inspectionId);
+    for (final installation in installations) {
+      if (installation.id != null) {
+        await db.delete('noodverlichting_defecten',
+            where: 'noodverlichting_installation_id = ?',
+            whereArgs: [installation.id]);
+      }
+    }
+    await db.delete(
+      'noodverlichting_installations',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+    );
+  }
+
+  Future<void> updateNoodverlichtingInstallationOrder(
+      List<int> orderedIds) async {
+    await _ensureNoodverlichtingSchema();
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < orderedIds.length; i++) {
+      batch.update(
+        'noodverlichting_installations',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [orderedIds[i]],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   // ── Solar Inverters ──

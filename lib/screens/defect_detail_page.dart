@@ -35,6 +35,7 @@ import 'inspection_menu_page.dart';
 import 'melding_gevaarlijke_situatie_page.dart';
 import 'switchboards_list_page.dart';
 import 'solar_installations_list_page.dart';
+import 'noodverlichting_list_page.dart';
 import 'defects_list_page.dart';
 
 class DefectDetailPage extends StatelessWidget {
@@ -667,6 +668,9 @@ class _NavBar extends StatelessWidget {
             _btn(context, Icons.solar_power, 'Zonnestroom',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
+            _btn(context, Icons.emergency, 'Noodverlichting',
+                () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => NoodverlichtingListPage(inspectionId: inspectionId)))),
             _btn(context, Icons.warning_amber, 'Gebreken',
                 () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => DefectsListPage(inspectionId: inspectionId)))),

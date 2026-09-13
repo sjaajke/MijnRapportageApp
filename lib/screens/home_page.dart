@@ -20,6 +20,7 @@ import 'package:archive/archive_io.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
@@ -32,6 +33,8 @@ import '../services/photo_service.dart';
 import '../services/xml_export_service.dart';
 import '../services/xml_import_service.dart';
 import '../services/pdf_export_service.dart';
+import 'handleiding_page.dart';
+import 'privacy_screen.dart';
 import 'inspection_menu_page.dart';
 import 'settings_page.dart';
 
@@ -47,11 +50,19 @@ class _HomePageState extends State<HomePage> {
   List<Inspection> _inspections = [];
   bool _loading = true;
   String? _loadError;
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     _loadInspections();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _appVersion = 'v${info.version}+${info.buildNumber}');
   }
 
   Future<void> _loadInspections() async {
@@ -263,6 +274,58 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
+  Future<void> _exportNoodverlichtingPdf(Inspection inspection) async {
+    final l10n = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    String path;
+    try {
+      path =
+          await PdfExportService().generateNoodverlichtingPdf(inspection.id!);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.pdfFailed(e))),
+      );
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+    try {
+      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
+    } catch (_) {}
+  }
+
+  Future<void> _exportNoodverlichtingInternPdf(Inspection inspection) async {
+    final l10n = AppLocalizations.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    String path;
+    try {
+      path = await PdfExportService()
+          .generateNoodverlichtingInternPdf(inspection.id!);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.pdfFailed(e))),
+      );
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+    try {
+      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
+    } catch (_) {}
+  }
+
   Future<void> _generateSamplePdf(Inspection inspection) async {
     final l10n = AppLocalizations.of(context);
     showDialog(
@@ -433,12 +496,41 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.inspections),
+        centerTitle: false,
+        titleSpacing: 16,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l10n.inspections),
+            if (_appVersion.isNotEmpty)
+              Text(
+                _appVersion,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'ZIP importeren',
             onPressed: _importZip,
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: isNl ? 'Handleiding' : 'User guide',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HandleidingPage()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.privacy_tip_outlined),
+            tooltip: l10n.privacyPolicyMenuItem,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+            ),
           ),
           TextButton(
             onPressed: _toggleLanguage,
@@ -538,6 +630,11 @@ class _HomePageState extends State<HomePage> {
                                 _inspections[index]),
                         onExportHerstelPdf: () =>
                             _exportHerstelPdf(_inspections[index]),
+                        onExportNoodverlichtingPdf: () =>
+                            _exportNoodverlichtingPdf(_inspections[index]),
+                        onExportNoodverlichtingInternPdf: () =>
+                            _exportNoodverlichtingInternPdf(
+                                _inspections[index]),
                         onExportZip: () => _exportZip(_inspections[index]),
                         onSamplePdf: () =>
                             _generateSamplePdf(_inspections[index]),
@@ -563,6 +660,8 @@ class _InspectionTile extends StatelessWidget {
   final VoidCallback onExportConstateriungPdf;
   final VoidCallback onExportSwitchboardConstateriungPdf;
   final VoidCallback onExportHerstelPdf;
+  final VoidCallback onExportNoodverlichtingPdf;
+  final VoidCallback onExportNoodverlichtingInternPdf;
   final VoidCallback onExportZip;
   final VoidCallback onSamplePdf;
   final VoidCallback onCopySections;
@@ -578,6 +677,8 @@ class _InspectionTile extends StatelessWidget {
     required this.onExportConstateriungPdf,
     required this.onExportSwitchboardConstateriungPdf,
     required this.onExportHerstelPdf,
+    required this.onExportNoodverlichtingPdf,
+    required this.onExportNoodverlichtingInternPdf,
     required this.onExportZip,
     required this.onSamplePdf,
     required this.onCopySections,
@@ -681,6 +782,12 @@ class _InspectionTile extends StatelessWidget {
                   case 'pdf_herstel':
                     onExportHerstelPdf();
                     break;
+                  case 'pdf_noodverlichting':
+                    onExportNoodverlichtingPdf();
+                    break;
+                  case 'pdf_noodverlichting_intern':
+                    onExportNoodverlichtingInternPdf();
+                    break;
                   case 'sample_pdf':
                     onSamplePdf();
                     break;
@@ -758,6 +865,36 @@ class _InspectionTile extends StatelessWidget {
                       const Icon(Icons.build_outlined, size: 20),
                       const SizedBox(width: 8),
                       Text(l10n.generateHerstelPdf),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'pdf_noodverlichting',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.emergency_outlined, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.generateNoodverlichtingPdf,
+                          softWrap: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'pdf_noodverlichting_intern',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.emergency_outlined, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.generateNoodverlichtingInternPdf,
+                          softWrap: true,
+                        ),
+                      ),
                     ],
                   ),
                 ),
