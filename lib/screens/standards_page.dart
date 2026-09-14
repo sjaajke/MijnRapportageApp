@@ -52,6 +52,14 @@ class _StandardsPageState extends State<StandardsPage> {
     'panel',
     'inspection_scope',
     'inspection_term_basis',
+    'noodverlichting_merk',
+    'noodverlichting_lichtbron',
+    'noodverlichting_accu',
+    'noodverlichting_type',
+    'noodverlichting_steker',
+    'noodverlichting_hoogte',
+    'noodverlichting_functie',
+    'noodverlichting_montage',
   ];
 
   List<String> _categoryLabels(AppLocalizations l10n) => [
@@ -73,6 +81,14 @@ class _StandardsPageState extends State<StandardsPage> {
     l10n.catPanel,
     l10n.catInspectionScope,
     l10n.catInspectionTermBasis,
+    l10n.catNoodverlichtingMerk,
+    l10n.catNoodverlichtingLichtbron,
+    l10n.catNoodverlichtingAccu,
+    l10n.catNoodverlichtingType,
+    l10n.catNoodverlichtingSteker,
+    l10n.catNoodverlichtingHoogte,
+    l10n.catNoodverlichtingFunctie,
+    l10n.catNoodverlichtingMontage,
   ];
 
   bool _exporting = false;

@@ -377,6 +377,14 @@ class PdfExportService {
     required List<MeasurementInstrument> allInstruments,
     required Uint8List? headerLogoBytes,
   }) {
+    final selectedInstrumentIds = generalData.measurementInstruments
+        .split(',')
+        .map((s) => int.tryParse(s.trim()))
+        .whereType<int>()
+        .toSet();
+    final selectedInstruments = allInstruments
+        .where((i) => selectedInstrumentIds.contains(i.id))
+        .toList();
     return pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(40),
@@ -476,11 +484,11 @@ class PdfExportService {
           if (generalData.inspectors.isNotEmpty)
             _labelValue('Inspecteur(s)', generalData.inspectors),
         ],
-        if (allInstruments.isNotEmpty) ...[
+        if (selectedInstruments.isNotEmpty) ...[
           pw.SizedBox(height: 12),
           _subTitle('Meetinstrumenten'),
           pw.SizedBox(height: 4),
-          _instrumentsTable(allInstruments),
+          _instrumentsTable(selectedInstruments),
         ],
       ],
     );
@@ -615,7 +623,7 @@ class PdfExportService {
           build: (context) => [
             _sectionTitle('Inleiding'),
             pw.SizedBox(height: 10),
-            _formattedTextBlock(details.inleiding),
+            _formattedTextBlock(details.inleiding, preserveLineBreaks: true),
           ],
         ),
       );
@@ -2288,7 +2296,7 @@ class PdfExportService {
           build: (context) => [
             _sectionTitle('Inleiding'),
             pw.SizedBox(height: 10),
-            _formattedTextBlock(details.inleiding),
+            _formattedTextBlock(details.inleiding, preserveLineBreaks: true),
           ],
         ),
       );
@@ -3373,6 +3381,7 @@ class PdfExportService {
     final widgets = <pw.Widget>[];
     String? currentMarker;
     StringBuffer? currentText;
+    var pendingParagraphBreak = false;
 
     void flush() {
       if (currentMarker != null) {
@@ -3404,29 +3413,39 @@ class PdfExportService {
               child: _richLine(content),
             ),
           );
-        } else {
-          widgets.add(pw.SizedBox(height: 6));
         }
       }
       currentMarker = null;
       currentText = null;
     }
 
+    // Starts a new paragraph/item, inserting a visible gap first if a blank
+    // line (an explicit paragraph break) preceded it.
+    void beginParagraphBreakIfPending() {
+      if (pendingParagraphBreak) {
+        widgets.add(pw.SizedBox(height: 6));
+        pendingParagraphBreak = false;
+      }
+    }
+
     for (final rawLine in text.split('\n')) {
       final line = rawLine.trim();
       if (line.isEmpty) {
         flush();
+        if (widgets.isNotEmpty) pendingParagraphBreak = true;
         continue;
       }
       final match = _listMarkerRegex.firstMatch(line);
       if (match != null) {
         flush();
+        beginParagraphBreakIfPending();
         currentMarker = match.group(1);
         currentText = StringBuffer(line.substring(match.end).trim());
       } else if (currentText != null) {
         currentText!.write(preserveLineBreaks ? '\n' : ' ');
         currentText!.write(line);
       } else {
+        beginParagraphBreakIfPending();
         currentText = StringBuffer(line);
       }
     }

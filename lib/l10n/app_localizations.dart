@@ -384,6 +384,22 @@ class AppLocalizations {
       isNl ? 'Inspectie omvang' : 'Inspection scope';
   String get catInspectionTermBasis =>
       isNl ? 'Inspectie termijn volgens' : 'Inspection term according to';
+  String get catNoodverlichtingMerk =>
+      isNl ? 'Noodverlichting Merk' : 'Emergency lighting brand';
+  String get catNoodverlichtingLichtbron =>
+      isNl ? 'Noodverlichting Lichtbron' : 'Emergency lighting light source';
+  String get catNoodverlichtingAccu =>
+      isNl ? 'Noodverlichting Accu' : 'Emergency lighting battery';
+  String get catNoodverlichtingType =>
+      isNl ? 'Noodverlichting Type' : 'Emergency lighting type';
+  String get catNoodverlichtingSteker =>
+      isNl ? 'Noodverlichting Steker' : 'Emergency lighting plug';
+  String get catNoodverlichtingHoogte =>
+      isNl ? 'Noodverlichting Hoogte' : 'Emergency lighting height';
+  String get catNoodverlichtingFunctie =>
+      isNl ? 'Noodverlichting Functie' : 'Emergency lighting function';
+  String get catNoodverlichtingMontage =>
+      isNl ? 'Noodverlichting Montage' : 'Emergency lighting mounting';
   String addCategory(String label) => isNl ? '$label toevoegen' : 'Add $label';
   String editCategory(String label) => isNl ? '$label wijzigen' : 'Edit $label';
   String get value => isNl ? 'Waarde' : 'Value';

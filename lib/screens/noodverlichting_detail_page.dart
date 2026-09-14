@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/noodverlichting_installation.dart';
 import '../services/database_service.dart';
+import '../widgets/autocomplete_text_field.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/location_picker_dialog.dart';
@@ -130,6 +131,14 @@ class _NoodverlichtingDetailViewState
   List<String> _locationAOptions = [];
   List<String> _locationBOptions = [];
   List<String> _opmerkingOptieOptions = [];
+  List<String> _merkOptions = [];
+  List<String> _lichtbronOptions = [];
+  List<String> _accuTypeOptions = [];
+  List<String> _typeNoodverlichtingOptions = [];
+  List<String> _typeStekerOptions = [];
+  List<String> _hoogteOptions = [];
+  List<String> _functieOptions = [];
+  List<String> _montageOptions = [];
   bool _loading = true;
 
   @override
@@ -175,6 +184,15 @@ class _NoodverlichtingDetailViewState
     final locationStandards = await _db.getStandards('location');
     final locationAStandards = await _db.getStandards('location_a');
     final locationBStandards = await _db.getStandards('location_b');
+    final merkStandards = await _db.getStandards('noodverlichting_merk');
+    final lichtbronStandards =
+        await _db.getStandards('noodverlichting_lichtbron');
+    final accuStandards = await _db.getStandards('noodverlichting_accu');
+    final typeStandards = await _db.getStandards('noodverlichting_type');
+    final stekerStandards = await _db.getStandards('noodverlichting_steker');
+    final hoogteStandards = await _db.getStandards('noodverlichting_hoogte');
+    final functieStandards = await _db.getStandards('noodverlichting_functie');
+    final montageStandards = await _db.getStandards('noodverlichting_montage');
     final constateringen = await _db.getRapportConstateringen();
     final opmerkingOpties = constateringen
         .where((c) => c.groep.trim().toLowerCase() == 'noodverlichting')
@@ -189,6 +207,19 @@ class _NoodverlichtingDetailViewState
       _locationAOptions = locationAStandards.map((s) => s.value).toList();
       _locationBOptions = locationBStandards.map((s) => s.value).toList();
       _opmerkingOptieOptions = opmerkingOpties;
+      _merkOptions = merkStandards.map((s) => s.value).toSet().toList();
+      _lichtbronOptions =
+          lichtbronStandards.map((s) => s.value).toSet().toList();
+      _accuTypeOptions = accuStandards.map((s) => s.value).toSet().toList();
+      _typeNoodverlichtingOptions =
+          typeStandards.map((s) => s.value).toSet().toList();
+      _typeStekerOptions =
+          stekerStandards.map((s) => s.value).toSet().toList();
+      _hoogteOptions = hoogteStandards.map((s) => s.value).toSet().toList();
+      _functieOptions =
+          functieStandards.map((s) => s.value).toSet().toList();
+      _montageOptions =
+          montageStandards.map((s) => s.value).toSet().toList();
       _loading = false;
     });
   }
@@ -420,44 +451,52 @@ class _NoodverlichtingDetailViewState
             onPick: _locationBOptions.isEmpty ? null : _pickLocationB,
           ),
           SectionHeader(title: 'Kenmerken'),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Merk',
             controller: _merkController,
+            options: _merkOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Lichtbron',
             controller: _lichtbronController,
+            options: _lichtbronOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Accu type',
             controller: _accuTypeController,
+            options: _accuTypeOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Type noodverlichting',
             controller: _typeNoodverlichtingController,
+            options: _typeNoodverlichtingOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Type steker',
             controller: _typeStekerController,
+            options: _typeStekerOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Hoogte',
             controller: _hoogteController,
+            options: _hoogteOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Functie',
             controller: _functieController,
+            options: _functieOptions,
             onChanged: (_) => _save(),
           ),
-          CustomTextField(
+          AutocompleteTextField(
             label: 'Montage',
             controller: _montageController,
+            options: _montageOptions,
             onChanged: (_) => _save(),
           ),
           CustomTextField(

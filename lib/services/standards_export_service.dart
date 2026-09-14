@@ -69,6 +69,32 @@ class StandardsExportService {
       'Inspectie termijn volgens',
       'Inspection term according to'
     ],
+    'noodverlichting_merk': ['Noodverlichting Merk', 'Emergency lighting brand'],
+    'noodverlichting_lichtbron': [
+      'Noodverlichting Lichtbron',
+      'Emergency lighting light source'
+    ],
+    'noodverlichting_accu': [
+      'Noodverlichting Accu',
+      'Emergency lighting battery'
+    ],
+    'noodverlichting_type': ['Noodverlichting Type', 'Emergency lighting type'],
+    'noodverlichting_steker': [
+      'Noodverlichting Steker',
+      'Emergency lighting plug'
+    ],
+    'noodverlichting_hoogte': [
+      'Noodverlichting Hoogte',
+      'Emergency lighting height'
+    ],
+    'noodverlichting_functie': [
+      'Noodverlichting Functie',
+      'Emergency lighting function'
+    ],
+    'noodverlichting_montage': [
+      'Noodverlichting Montage',
+      'Emergency lighting mounting'
+    ],
   };
 
   static final Map<String, String> _categoryKeyByName = {
