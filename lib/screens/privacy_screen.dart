@@ -108,6 +108,11 @@ class PrivacyScreen extends StatelessWidget {
               titel: l10n.privacy10Titel,
               body: Text(l10n.privacy10Body),
             ),
+            _Sectie(
+              nummer: '11',
+              titel: l10n.privacy11Titel,
+              body: Text(l10n.privacy11Body),
+            ),
           ],
         ),
       ),

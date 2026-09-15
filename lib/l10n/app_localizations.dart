@@ -804,6 +804,17 @@ class AppLocalizations {
       : 'If you have questions about this Privacy Policy, you can contact us via:\n\n'
           'Developer: Inspectieportal\n'
           'Email: support@inspectieportal.nl';
+
+  String get privacy11Titel => isNl ? 'Licentie' : 'License';
+  String get privacy11Body => isNl
+      ? 'Deze App is open source software, uitgebracht onder de GNU General '
+          'Public License v3 (GPL-3.0). U mag de broncode vrij inzien, wijzigen '
+          'en verspreiden onder de voorwaarden van deze licentie. De volledige '
+          'licentietekst is te vinden via https://www.gnu.org/licenses/gpl-3.0.html.'
+      : 'This App is open source software, released under the GNU General '
+          'Public License v3 (GPL-3.0). You are free to view, modify and '
+          'redistribute the source code under the terms of this license. The '
+          'full license text is available at https://www.gnu.org/licenses/gpl-3.0.html.';
 }
 
 class _AppLocalizationsDelegate

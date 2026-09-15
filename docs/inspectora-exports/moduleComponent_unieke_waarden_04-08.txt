@@ -1,0 +1,358 @@
+Inspectora - database Inspectora - layout moduleComponent
+Unieke waarden van Component_Waarde 04 t/m 08
+Records doorzocht: 44.815
+======================================================================
+
+Component_Waarde 04  (32 unieke waarden)
+----------------------------------------------------------------------
+(leeg)
+21
+4
+Automoon
+Autonoom
+Autonoom 
+Centraal
+Component_Waarde 04
+Decentraal
+Decentraal 
+IP20
+IP40
+IP65
+Ja
+Led
+Nader te bepalen 
+Novelpl04
+Nvt
+Nvt aan accu 
+Vluchtrouteverlichting
+ZM
+Zelf teste
+Zelf testend
+Zelf testend 
+Zelftestend
+Zelftestend 
+Zeltestend
+Zwkf testend
+autonoom
+merge 05
+zelf testend
+zelftestend
+
+
+Component_Waarde 05  (188 unieke waarden)
+----------------------------------------------------------------------
+(leeg)
+ Novelpl03
+ Novelpl21
+ Nvt aan accu 
+ Ovelpl31
+0
+1x Novelpl11 1x Novelpl02
+2x novelpl21
+3/cd45/s/as
+< 3 m
+A-1
+Component_Omschrijving 05
+Connector aan de accu 
+Elubat 275813
+Faston
+Faston 
+Flex wago
+Flex wago 
+HBI 94223L
+HX25002-3P 60mm
+JST EHR-2
+JST-PH2
+Ja
+K46-3RWZc
+Kroon/Alvit
+Kroon/Alvit 
+Kroon/alvit
+Kroon/alvit 
+M102
+NVT
+NVT draad aan accu
+Nader te bepalen
+Nader te bepalen 
+Nea890
+Nea890 
+Nivelpl32
+Nocelpl04
+Novel PL04
+Novel318SF
+Novel32
+Novel39
+NovelPL03
+NovelPL04
+NovelPL05
+NovelPL08
+NovelPL09
+NovelPL12
+NovelPL16
+NovelPL21
+NovelPL27
+NovelPL28
+NovelPL29
+NovelPL32
+NovelPL35
+NovelPL36
+NovelPL38
+NovelPL39
+NovelPL40
+Novelnpl21
+Novelp04
+Novelp05
+Novelp21
+Novelp32
+Novelp39
+Novelp[32
+Novelpl01
+Novelpl01 + 2x female faston
+Novelpl016
+Novelpl03
+Novelpl04
+Novelpl04
+Novelpl05
+Novelpl08
+Novelpl09
+Novelpl10
+Novelpl11
+Novelpl12
+Novelpl13
+Novelpl15
+Novelpl16
+Novelpl21
+Novelpl21 + 2x flex wago
+Novelpl21 met los 2 faston male
+Novelpl23
+Novelpl24
+Novelpl24
+Novelpl27
+Novelpl28
+Novelpl29
+Novelpl3
+Novelpl31
+Novelpl32
+Novelpl32 
+Novelpl35
+Novelpl36
+Novelpl37
+Novelpl39
+Novelpl39 
+Novelpl39Nvt
+Novelpl44
+Novelpl49
+Novelpl52
+Novelpl53
+Novepl52
+Novrlpl21
+Npvelpl21
+Ntb
+Nv
+Nvelpl21
+Nvr aan accu
+Nvt
+Nvt 
+Nvt  aan accu
+Nvt Aan accu
+Nvt Aan accu 
+Nvt Stekker aan acu
+Nvt aa accu
+Nvt aab accu
+Nvt aan ac
+Nvt aan accc
+Nvt aan accu
+Nvt aan accu 
+Nvt aan accu 
+Nvt aan accu’s 
+Nvt aan accy
+Nvt aan acu
+Nvt aan ccu
+Nvt aan connector accu
+Nvt aan stekker
+Nvt aan stekker 
+Nvt an accu
+Nvt conn aan accu 
+Nvt connector  aan accu
+Nvt connector aa accu
+Nvt connector aan accu
+Nvt connector aan accu 
+Nvt connector aan accu NovelPL03
+Nvt daad aan accu
+Nvt draad aan accu
+Nvt draad aan accu 
+Nvt faston
+Nvt faston 
+Nvt stekjer aan accu
+Nvt stekker aan accu
+Nvt stekker aan accu 
+Nvt.aan accu
+Nvyt aan accu
+Nza034
+Opbouw plafond
+Opbouw wand
+Osram ledvance 4058075237025
+PL03
+PL08
+PL21
+Philips
+Philips 
+Pl32
+Prolumia
+SEC onbekend 
+Schroef
+Sylvania
+Sylvania 9005627
+Taurac ASF2-3240-18650
+Taurac C3-3240-26650
+Taurac K05-2RZ
+Taurac K27-2ZR
+Taurac K32-2ZR
+Taurac K33 2ZR
+Taurac K39-2ZR
+Taurac K44.3-3RZZ
+Taurac K46-3RWZ
+Taurac K47-3RKW
+Taurac K47-3RZW
+Taurac K55-3WZR
+Taurac K99-3WZR
+Taurac Taurc K47-3RZW
+Taurc K47-3RZW
+Uitvoering armatuur
+Zie componenten foto
+Zie foto
+Zie foto 
+Zie foto. 
+faston
+merge 06
+novelpl16
+novelpl32
+nvt
+philips
+
+
+Component_Waarde 06  (72 unieke waarden)
+----------------------------------------------------------------------
+(leeg)
+
+0
+Alg. noodverlichting
+Algemen noodverlichting
+Algemene  noodverlichting 
+Algemene Noodverlichting
+Algemene Noodverlichting 
+Algemene noodverlichting
+Algemene noodverlichting 
+Anti paniekverlichting
+Anti-paniekverlichting
+Antipaniek verlichting 
+Antipaniekverlichting
+Antipaniekverlichting 
+Antu-paniekverlichting
+Component_Waarde 05
+Decentraal
+Doorgang links/rechts
+Doorgang rechtdoor
+Functie
+Geen
+Inbouw
+Ja
+Nader te bepalen 
+Noodver
+Noodverlichting
+Noodverlichting 
+Novelpl04
+Novelpl21
+Nvt
+Nvt aan accu
+Nvt connectot aan accu
+Uitgang rechtdoor
+Vluchrouteverlichting
+Vluchtroute verlichting
+Vluchtroute verlichting 
+Vluchtrouteaandiding 1V
+Vluchtrouteaanduideing 1V
+Vluchtrouteaanduiding
+Vluchtrouteaanduiding 1V
+Vluchtrouteaanduiding 1V 
+Vluchtrouteaanduiding 2V
+Vluchtrouteaanduiding 2V 
+Vluchtrouteaanduiding V 
+Vluchtrouteverlichting
+Vluchtrouteverlichting 
+Vluchtrouteverlichting 1V
+Vluchtweg
+Vluchtweg aanduiding
+Vluchtweg aanduiding 
+Vluchtweg aanduiding 1V
+Vluchtweg aanduiding 1v
+Vluchtweg aanduiding 2V
+Vluchtweg aanduiding 2v
+Vluchtweg aanduiding dubbelzijdig 
+Vluchtweg aanduiding enkelzijdig
+Vluchtweg rechtdoor
+Vluchtweg verlichting
+Vluchtwegaanduiding
+Vluchtwegaanduiding 
+Vluchtwegaanduiding 1V
+Vluchtwegaanduiding 2V
+Vluchtwegaanduiding 2v
+Vluchtwegverlichting
+Vluchtwegverlichting 
+Vluichtweg aanduiding
+Vuchtrouteaanduiding 1V
+Vuchtrouteverlichting
+algemene noodverlichting
+merge 07
+vluchtrouteverlichting
+
+
+Component_Waarde 07  (29 unieke waarden)
+----------------------------------------------------------------------
+(leeg)
+2012
+2013
+2015
+2016
+2017
+2018
+Algemene noodverlichting
+Component_Omschrijving 06
+Inbouw
+Inbouw
+Inbouw 
+Inbouw/opbouw
+Inbouww
+Montage
+Nader te bepalen 
+Nvt
+Op
+Opbouw
+Opbouw 
+Opbouw.
+Pendel
+Pendel 
+Pendel opbouw 
+Pictogram
+Rail
+Vluchtweg aanduiding 1v
+bouw
+merge 08
+
+
+Component_Waarde 08  (12 unieke waarden)
+----------------------------------------------------------------------
+(leeg)
+ 
+11190046
+2,4V/4Ah - 2D
+6m
+Component_Waarde 06
+Ja
+KRMT/49-AA800mAh
+NVT
+NiCd
+NiMh
+merge 09
+
+
