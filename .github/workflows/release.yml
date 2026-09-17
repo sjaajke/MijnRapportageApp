@@ -25,10 +25,12 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
       - run: flutter pub get
       - run: flutter build apk --release
+      - name: Rename apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/MijnRapportage-android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/MijnRapportage-android.apk
 
   build-ios:
     runs-on: macos-latest
@@ -205,7 +207,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            artifacts/android-apk/app-release.apk \
+            artifacts/android-apk/MijnRapportage-android.apk \
             artifacts/ios-app/MijnRapportage-ios-unsigned.zip \
             artifacts/macos-app/MijnRapportage-macos.zip \
             artifacts/windows-app/MijnRapportage-windows.zip \
