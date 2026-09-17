@@ -37,6 +37,7 @@ class Defect {
   final String meldingHandtekeningKlant;
   final int sortOrder;
   final int? defectNumber;
+  final bool isGemarkeerd;
 
   static const List<String> classifications = ['Rd', 'Or', 'Ge', 'Bl', 'Pa', 'Gr'];
 
@@ -66,6 +67,7 @@ class Defect {
     this.meldingHandtekeningKlant = '',
     this.sortOrder = 0,
     this.defectNumber,
+    this.isGemarkeerd = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -90,6 +92,7 @@ class Defect {
       'melding_handtekening_klant': meldingHandtekeningKlant,
       'sort_order': sortOrder,
       'defect_number': defectNumber,
+      'is_gemarkeerd': isGemarkeerd ? 1 : 0,
     };
   }
 
@@ -117,7 +120,16 @@ class Defect {
           map['melding_handtekening_klant'] as String? ?? '',
       sortOrder: map['sort_order'] as int? ?? 0,
       defectNumber: map['defect_number'] as int?,
+      isGemarkeerd: (map['is_gemarkeerd'] as int?) == 1,
     );
+  }
+
+  static String _norm(String s) => s.trim().toLowerCase();
+
+  bool matchesForDuplicate(Defect other) {
+    return _norm(locationFull) == _norm(other.locationFull) &&
+        _norm(naamCode) == _norm(other.naamCode) &&
+        _norm(description) == _norm(other.description);
   }
 
   Defect copyWith({
@@ -144,6 +156,7 @@ class Defect {
     String? meldingHandtekeningKlant,
     int? sortOrder,
     int? defectNumber,
+    bool? isGemarkeerd,
   }) {
     return Defect(
       id: id ?? this.id,
@@ -168,6 +181,7 @@ class Defect {
           meldingHandtekeningKlant ?? this.meldingHandtekeningKlant,
       sortOrder: sortOrder ?? this.sortOrder,
       defectNumber: defectNumber ?? this.defectNumber,
+      isGemarkeerd: isGemarkeerd ?? this.isGemarkeerd,
     );
   }
 }

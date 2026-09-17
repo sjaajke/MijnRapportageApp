@@ -16,6 +16,7 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -39,6 +40,7 @@ import '../models/final_assessment.dart';
 import '../models/rapport_constatering.dart';
 import '../models/steekproef_item.dart';
 import '../models/bijlage.dart';
+import '../models/checklist.dart';
 import '../models/tekening.dart';
 import '../models/tekening_pin.dart';
 import '../models/herstel.dart';
@@ -53,6 +55,9 @@ import '../models/nen_gebrek.dart';
 import '../models/nen_gebrek_foto.dart';
 import '../data/nen2767_seed_data.dart';
 import 'photo_service.dart';
+
+/// Hoe een dubbel record moet worden afgehandeld bij "Onderdelen overnemen".
+enum DuplicateCopyAction { skip, copyMarked, copyUnmarked, replace }
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -171,6 +176,7 @@ class DatabaseService {
       'cable_plan': "TEXT",
       'construction_declaration': "TEXT",
       'installation_data': "TEXT",
+      'is_gemarkeerd': "INTEGER NOT NULL DEFAULT 0",
     };
     for (final entry in toAdd.entries) {
       if (!existing.contains(entry.key)) {
@@ -612,7 +618,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 29,
+      version: 30,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -966,6 +972,17 @@ class DatabaseService {
     ''');
 
     await db.execute('''
+      CREATE TABLE checklists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inspection_id INTEGER NOT NULL,
+        name TEXT DEFAULT '',
+        items_json TEXT DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE measurement_groups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         inspection_id INTEGER NOT NULL,
@@ -1186,6 +1203,11 @@ class DatabaseService {
     if (!cols.any((c) => c['name'] == 'defect_number')) {
       await db.execute(
         "ALTER TABLE defects ADD COLUMN defect_number INTEGER",
+      );
+    }
+    if (!cols.any((c) => c['name'] == 'is_gemarkeerd')) {
+      await db.execute(
+        "ALTER TABLE defects ADD COLUMN is_gemarkeerd INTEGER NOT NULL DEFAULT 0",
       );
     }
     // Ensure title_page_defaults table exists (for databases created before this feature).
@@ -1499,6 +1521,7 @@ class DatabaseService {
         'opmerking': "TEXT DEFAULT ''",
         'include_checklist_in_pdf': "INTEGER NOT NULL DEFAULT 1",
         'sort_order': "INTEGER NOT NULL DEFAULT 0",
+        'is_gemarkeerd': "INTEGER NOT NULL DEFAULT 0",
       };
       for (final entry in sbToAdd.entries) {
         if (!sbExisting.contains(entry.key)) {
@@ -1909,6 +1932,18 @@ class DatabaseService {
           "ALTER TABLE general_data ADD COLUMN inspector_author TEXT DEFAULT ''",
         );
       }
+    }
+    if (oldVersion < 30) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS checklists (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          inspection_id INTEGER NOT NULL,
+          name TEXT DEFAULT '',
+          items_json TEXT DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+        )
+      ''');
     }
   }
 
@@ -2436,6 +2471,18 @@ class DatabaseService {
         await txn.insert('bijlagen', bijlageCopy);
       }
 
+      final checklists = await txn.query(
+        'checklists',
+        where: 'inspection_id = ?',
+        whereArgs: [id],
+      );
+      for (final checklist in checklists) {
+        final checklistCopy = Map<String, dynamic>.from(checklist)
+          ..remove('id')
+          ..['inspection_id'] = newId;
+        await txn.insert('checklists', checklistCopy);
+      }
+
       final measurementGroups = await txn.query(
         'measurement_groups',
         where: 'inspection_id = ?',
@@ -2477,6 +2524,35 @@ class DatabaseService {
     final id = await db.insert('title_pages', titlePage.toMap());
     await _updateInspectionTimestamp(titlePage.inspectionId);
     return id;
+  }
+
+  /// Returns the inspection's title page, creating one from the
+  /// company-wide layout defaults (Bedrijfsgegevens) if it doesn't exist yet.
+  Future<TitlePage> getOrCreateTitlePage(int inspectionId) async {
+    final existing = await getTitlePage(inspectionId);
+    if (existing != null) return existing;
+
+    final d = await getTitlePageLayoutDefaults();
+    await insertTitlePage(TitlePage(
+      inspectionId: inspectionId,
+      titleX: d?['title_x'] ?? 0.5, titleY: d?['title_y'] ?? 0.15,
+      titleW: d?['title_w'] ?? 0.80, titleH: d?['title_h'] ?? 0.10,
+      subtitleX: d?['subtitle_x'] ?? 0.5, subtitleY: d?['subtitle_y'] ?? 0.26,
+      subtitleW: d?['subtitle_w'] ?? 0.70, subtitleH: d?['subtitle_h'] ?? 0.07,
+      photoX: d?['photo_x'] ?? 0.5, photoY: d?['photo_y'] ?? 0.50,
+      photoW: d?['photo_w'] ?? 0.60, photoH: d?['photo_h'] ?? 0.35,
+      dateX: d?['date_x'] ?? 0.5, dateY: d?['date_y'] ?? 0.78,
+      dateW: d?['date_w'] ?? 0.70, dateH: d?['date_h'] ?? 0.065,
+      codeX: d?['code_x'] ?? 0.5, codeY: d?['code_y'] ?? 0.86,
+      codeW: d?['code_w'] ?? 0.70, codeH: d?['code_h'] ?? 0.065,
+      projectX: d?['project_x'] ?? 0.5, projectY: d?['project_y'] ?? 0.93,
+      projectW: d?['project_w'] ?? 0.70, projectH: d?['project_h'] ?? 0.065,
+      logoX: d?['logo_x'] ?? 0.82, logoY: d?['logo_y'] ?? 0.07,
+      logoW: d?['logo_w'] ?? 0.30, logoH: d?['logo_h'] ?? 0.12,
+      addressNameX: d?['address_name_x'] ?? 0.5, addressNameY: d?['address_name_y'] ?? 0.72,
+      addressNameW: d?['address_name_w'] ?? 0.70, addressNameH: d?['address_name_h'] ?? 0.065,
+    ));
+    return (await getTitlePage(inspectionId))!;
   }
 
   Future<TitlePage?> getTitlePage(int inspectionId) async {
@@ -3307,11 +3383,37 @@ class DatabaseService {
 
   // ── Copy sections between inspections ──
 
+  Future<void> _deletePhotoFileIfExists(String? path) async {
+    if (path == null || path.isEmpty) return;
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   Future<void> copySwitchboardsToInspection(
-      int sourceInspectionId, int targetInspectionId) async {
+    int sourceInspectionId,
+    int targetInspectionId, {
+    Map<int, DuplicateCopyAction> decisions = const {},
+    Map<int, int> replaceTargetIds = const {},
+  }) async {
     final photoService = PhotoService();
     final switchboards = await getSwitchboards(sourceInspectionId);
     for (final switchboard in switchboards) {
+      final action =
+          switchboard.id != null ? decisions[switchboard.id] : null;
+      if (action == DuplicateCopyAction.skip) continue;
+
+      if (action == DuplicateCopyAction.replace) {
+        final targetId = replaceTargetIds[switchboard.id];
+        final existing = targetId != null ? await getSwitchboard(targetId) : null;
+        if (existing != null) {
+          await _deletePhotoFileIfExists(existing.photo1Path);
+          await _deletePhotoFileIfExists(existing.photo2Path);
+          await deleteSwitchboard(existing.id!);
+        }
+      }
+
       final map = switchboard.toMap();
       map.remove('id');
       map['inspection_id'] = targetInspectionId;
@@ -3319,15 +3421,37 @@ class DatabaseService {
           switchboard.photo1Path, targetInspectionId);
       map['photo2_path'] = await photoService.copyPhotoToInspection(
           switchboard.photo2Path, targetInspectionId);
+      map['is_gemarkeerd'] = action == DuplicateCopyAction.copyMarked ? 1 : 0;
       await insertSwitchboard(Switchboard.fromMap(map));
     }
   }
 
   Future<void> copySolarInstallationsToInspection(
-      int sourceInspectionId, int targetInspectionId) async {
+    int sourceInspectionId,
+    int targetInspectionId, {
+    Map<int, DuplicateCopyAction> decisions = const {},
+    Map<int, int> replaceTargetIds = const {},
+  }) async {
     final photoService = PhotoService();
     final installations = await getSolarInstallations(sourceInspectionId);
     for (final installation in installations) {
+      final action =
+          installation.id != null ? decisions[installation.id] : null;
+      if (action == DuplicateCopyAction.skip) continue;
+
+      if (action == DuplicateCopyAction.replace) {
+        final targetId = replaceTargetIds[installation.id];
+        final existing =
+            targetId != null ? await getSolarInstallation(targetId) : null;
+        if (existing != null) {
+          await _deletePhotoFileIfExists(existing.photoRoof1Path);
+          await _deletePhotoFileIfExists(existing.photoRoof2Path);
+          await _deletePhotoFileIfExists(existing.photoInverter1Path);
+          await _deletePhotoFileIfExists(existing.photoInverter2Path);
+          await deleteSolarInstallation(existing.id!);
+        }
+      }
+
       final map = installation.toMap();
       map.remove('id');
       map['inspection_id'] = targetInspectionId;
@@ -3339,6 +3463,7 @@ class DatabaseService {
           installation.photoInverter1Path, targetInspectionId);
       map['photo_inverter2_path'] = await photoService.copyPhotoToInspection(
           installation.photoInverter2Path, targetInspectionId);
+      map['is_gemarkeerd'] = action == DuplicateCopyAction.copyMarked ? 1 : 0;
       final newInstallationId =
           await insertSolarInstallation(SolarInstallation.fromMap(map));
 
@@ -3376,10 +3501,27 @@ class DatabaseService {
   }
 
   Future<void> copyDefectsToInspection(
-      int sourceInspectionId, int targetInspectionId) async {
+    int sourceInspectionId,
+    int targetInspectionId, {
+    Map<int, DuplicateCopyAction> decisions = const {},
+    Map<int, int> replaceTargetIds = const {},
+  }) async {
     final photoService = PhotoService();
     final defects = await getDefects(sourceInspectionId);
     for (final defect in defects) {
+      final action = defect.id != null ? decisions[defect.id] : null;
+      if (action == DuplicateCopyAction.skip) continue;
+
+      if (action == DuplicateCopyAction.replace) {
+        final targetId = replaceTargetIds[defect.id];
+        final existing = targetId != null ? await getDefect(targetId) : null;
+        if (existing != null) {
+          await _deletePhotoFileIfExists(existing.photo1Path);
+          await _deletePhotoFileIfExists(existing.photo2Path);
+          await deleteDefect(existing.id!);
+        }
+      }
+
       final map = defect.toMap();
       map.remove('id');
       map['inspection_id'] = targetInspectionId;
@@ -3387,6 +3529,7 @@ class DatabaseService {
           defect.photo1Path, targetInspectionId);
       map['photo2_path'] = await photoService.copyPhotoToInspection(
           defect.photo2Path, targetInspectionId);
+      map['is_gemarkeerd'] = action == DuplicateCopyAction.copyMarked ? 1 : 0;
       final newDefectId = await insertDefect(Defect.fromMap(map));
 
       if (defect.hasAnnotations && defect.id != null) {
@@ -4122,6 +4265,53 @@ class DatabaseService {
   Future<void> deleteBijlage(int id) async {
     final db = await database;
     await db.delete('bijlagen', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Checklists ──────────────────────────────────────────────────────────────
+
+  Future<List<Checklist>> getChecklists(int inspectionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'checklists',
+      where: 'inspection_id = ?',
+      whereArgs: [inspectionId],
+      orderBy: 'sort_order ASC, id ASC',
+    );
+    return maps.map(Checklist.fromMap).toList();
+  }
+
+  Future<int> insertChecklist(Checklist checklist) async {
+    final db = await database;
+    return await db.insert('checklists', checklist.toMap());
+  }
+
+  Future<void> updateChecklist(Checklist checklist) async {
+    final db = await database;
+    await db.update(
+      'checklists',
+      checklist.toMap(),
+      where: 'id = ?',
+      whereArgs: [checklist.id],
+    );
+  }
+
+  Future<void> deleteChecklist(int id) async {
+    final db = await database;
+    await db.delete('checklists', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateChecklistOrder(List<int> orderedIds) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < orderedIds.length; i++) {
+      batch.update(
+        'checklists',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [orderedIds[i]],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   // ── Tekening pins ───────────────────────────────────────────────────────────

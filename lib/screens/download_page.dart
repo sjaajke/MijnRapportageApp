@@ -25,7 +25,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/defect.dart';
 import '../models/inspection_detail.dart';
 import '../models/switchboard.dart';
-import '../models/title_page.dart' as model;
 import '../services/database_service.dart';
 import '../services/filemaker_service.dart';
 import '../widgets/section_header.dart';
@@ -471,16 +470,8 @@ class _DownloadPageState extends State<DownloadPage> {
     // Update title page inspection date
     final datum = r.rapport.field('Datum');
     if (datum.isNotEmpty) {
-      var titlePage = await _db.getTitlePage(widget.inspectionId);
-      if (titlePage == null) {
-        await _db.insertTitlePage(
-          model.TitlePage(inspectionId: widget.inspectionId),
-        );
-        titlePage = await _db.getTitlePage(widget.inspectionId);
-      }
-      if (titlePage != null) {
-        await _db.updateTitlePage(titlePage.copyWith(inspectionDate: datum));
-      }
+      final titlePage = await _db.getOrCreateTitlePage(widget.inspectionId);
+      await _db.updateTitlePage(titlePage.copyWith(inspectionDate: datum));
     }
 
     if (mounted) {

@@ -16,6 +16,7 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:archive/archive_io.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +29,9 @@ import '../main.dart';
 import '../models/general_data.dart';
 import '../models/inspection.dart';
 import '../models/title_page.dart' as tp;
+import '../models/switchboard.dart';
+import '../models/defect.dart';
+import '../models/solar_installation.dart';
 import '../services/database_service.dart';
 import '../services/photo_service.dart';
 import '../services/xml_export_service.dart';
@@ -428,24 +432,25 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _copySections(Inspection source) async {
-    final targets = _inspections.where((i) => i.id != source.id).toList();
-    if (targets.isEmpty) {
+  Future<void> _copySections(Inspection target) async {
+    final sources = _inspections.where((i) => i.id != target.id).toList();
+    if (sources.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Er is geen andere inspectie om naar over te nemen'),
+          content:
+              Text('Er is geen andere inspectie om onderdelen van over te nemen'),
         ),
       );
       return;
     }
-    final copied = await showDialog<bool>(
+    final summary = await showDialog<String>(
       context: context,
       builder: (_) =>
-          _CopySectionsDialog(source: source, targets: targets, db: _db),
+          _CopySectionsDialog(target: target, sources: sources, db: _db),
     );
-    if (copied == true && mounted) {
+    if (summary != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Onderdelen overgenomen')),
+        SnackBar(content: Text(summary)),
       );
     }
   }
@@ -951,13 +956,13 @@ class _InspectionTile extends StatelessWidget {
 }
 
 class _CopySectionsDialog extends StatefulWidget {
-  final Inspection source;
-  final List<Inspection> targets;
+  final Inspection target;
+  final List<Inspection> sources;
   final DatabaseService db;
 
   const _CopySectionsDialog({
-    required this.source,
-    required this.targets,
+    required this.target,
+    required this.sources,
     required this.db,
   });
 
@@ -965,24 +970,57 @@ class _CopySectionsDialog extends StatefulWidget {
   State<_CopySectionsDialog> createState() => _CopySectionsDialogState();
 }
 
+/// Eén gevonden dubbeling tussen een bron- en een doelrecord, met de
+/// door de gebruiker gekozen actie.
+class _DuplicateEntry {
+  final String category; // 'Verdeler' / 'Zonnestroom-installatie' / 'Constatering'
+  final int sourceId;
+  final int targetId;
+  final String sourceLabel;
+  final String targetLabel;
+  DuplicateCopyAction action;
+
+  _DuplicateEntry({
+    required this.category,
+    required this.sourceId,
+    required this.targetId,
+    required this.sourceLabel,
+    required this.targetLabel,
+    this.action = DuplicateCopyAction.skip,
+  });
+}
+
 class _CopySectionsDialogState extends State<_CopySectionsDialog> {
+  static const _actionLabels = {
+    DuplicateCopyAction.skip: 'Niet overnemen',
+    DuplicateCopyAction.copyMarked: 'Overnemen en markeren',
+    DuplicateCopyAction.copyUnmarked: 'Overnemen zonder markeren',
+    DuplicateCopyAction.replace: 'Overnemen en bestaand vervangen',
+  };
+
   bool _loading = true;
   bool _busy = false;
-  int? _targetId;
-  final Map<int, String> _labels = {};
+  int _step = 0;
+  int? _sourceId;
+  final Map<int, String> _sourceLabels = {};
 
   bool _copySwitchboards = true;
   bool _copySolar = true;
   bool _copyDefects = true;
 
-  int _switchboardCount = 0;
-  int _solarCount = 0;
-  int _defectCount = 0;
-
-  bool _targetCountsLoading = false;
+  // Aantallen in de (vaste) doelinspectie, éénmalig geladen.
   int _targetSwitchboardCount = 0;
   int _targetSolarCount = 0;
   int _targetDefectCount = 0;
+
+  // Aantallen in de gekozen bron-inspectie, herladen bij wisselen.
+  bool _sourceCountsLoading = false;
+  int _sourceSwitchboardCount = 0;
+  int _sourceSolarCount = 0;
+  int _sourceDefectCount = 0;
+
+  List<_DuplicateEntry> _duplicates = [];
+  DuplicateCopyAction _bulkAction = DuplicateCopyAction.skip;
 
   @override
   void initState() {
@@ -990,79 +1028,211 @@ class _CopySectionsDialogState extends State<_CopySectionsDialog> {
     _load();
   }
 
-  Future<void> _load() async {
-    final sourceId = widget.source.id!;
-    final results = await Future.wait([
-      widget.db.getSwitchboards(sourceId),
-      widget.db.getSolarInstallations(sourceId),
-      widget.db.getDefects(sourceId),
-      ...widget.targets.map((i) => widget.db.getTitlePage(i.id!)),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _switchboardCount = (results[0] as List).length;
-      _solarCount = (results[1] as List).length;
-      _defectCount = (results[2] as List).length;
-      for (var i = 0; i < widget.targets.length; i++) {
-        final titlePage = results[3 + i] as tp.TitlePage?;
-        final label = (titlePage?.title.isNotEmpty == true)
-            ? titlePage!.title
-            : 'Inspectie #${widget.targets[i].id}';
-        _labels[widget.targets[i].id!] = label;
-      }
-      _targetId = widget.targets.first.id;
-      _loading = false;
-    });
-    await _loadTargetCounts();
+  String _formatSourceLabel(
+      tp.TitlePage? titlePage, GeneralData? generalData, int id) {
+    final projectNumber = titlePage?.projectNumber ?? '';
+    final objectnaam = generalData?.inspectionAddressName ?? '';
+    final title = (titlePage?.title.isNotEmpty == true)
+        ? titlePage!.title
+        : 'Inspectie #$id';
+    final parts = <String>[
+      if (projectNumber.isNotEmpty) projectNumber,
+      if (objectnaam.isNotEmpty) objectnaam,
+      title,
+    ];
+    return parts.join(' · ');
   }
 
-  Future<void> _loadTargetCounts() async {
-    final targetId = _targetId;
-    if (targetId == null) return;
-    setState(() => _targetCountsLoading = true);
-    final results = await Future.wait([
+  Future<void> _load() async {
+    final targetId = widget.target.id!;
+    final targetCounts = await Future.wait([
       widget.db.getSwitchboards(targetId),
       widget.db.getSolarInstallations(targetId),
       widget.db.getDefects(targetId),
     ]);
-    // The selected target may have changed again while this was loading.
-    if (!mounted || _targetId != targetId) return;
+    final sourceLabels = await Future.wait(widget.sources.map((i) async {
+      final titlePage = await widget.db.getTitlePage(i.id!);
+      final generalData = await widget.db.getGeneralData(i.id!);
+      return MapEntry(i.id!, _formatSourceLabel(titlePage, generalData, i.id!));
+    }));
+    if (!mounted) return;
     setState(() {
-      _targetSwitchboardCount = (results[0] as List).length;
-      _targetSolarCount = (results[1] as List).length;
-      _targetDefectCount = (results[2] as List).length;
-      _targetCountsLoading = false;
+      _targetSwitchboardCount = (targetCounts[0] as List).length;
+      _targetSolarCount = (targetCounts[1] as List).length;
+      _targetDefectCount = (targetCounts[2] as List).length;
+      for (final entry in sourceLabels) {
+        _sourceLabels[entry.key] = entry.value;
+      }
+      _sourceId = widget.sources.first.id;
+      _loading = false;
+    });
+    await _loadSourceCounts();
+  }
+
+  Future<void> _loadSourceCounts() async {
+    final sourceId = _sourceId;
+    if (sourceId == null) return;
+    setState(() => _sourceCountsLoading = true);
+    final results = await Future.wait([
+      widget.db.getSwitchboards(sourceId),
+      widget.db.getSolarInstallations(sourceId),
+      widget.db.getDefects(sourceId),
+    ]);
+    // The selected source may have changed again while this was loading.
+    if (!mounted || _sourceId != sourceId) return;
+    setState(() {
+      _sourceSwitchboardCount = (results[0] as List).length;
+      _sourceSolarCount = (results[1] as List).length;
+      _sourceDefectCount = (results[2] as List).length;
+      _sourceCountsLoading = false;
     });
   }
 
-  String _targetCountSubtitle(int targetCount) {
-    if (_targetCountsLoading) return 'Doel heeft al: ...';
-    return 'Doel heeft al: $targetCount';
+  String _sourceCountLabel(String label, int count) {
+    if (_sourceCountsLoading) return '$label (...)';
+    return '$label ($count)';
   }
 
   bool get _canConfirm =>
       !_busy &&
-      _targetId != null &&
+      _sourceId != null &&
       (_copySwitchboards || _copySolar || _copyDefects);
 
-  Future<void> _confirm() async {
+  String _switchboardLabel(Switchboard s) =>
+      s.name.isNotEmpty ? '${s.name} (${s.locationFull})' : s.locationFull;
+
+  String _solarLabel(SolarInstallation s) => s.panelSublocation.isNotEmpty
+      ? '${s.locationFull} - ${s.panelSublocation}'
+      : s.locationFull;
+
+  String _defectLabel(Defect d) =>
+      d.naamCode.isNotEmpty ? '${d.naamCode} (${d.locationFull})' : d.locationFull;
+
+  /// Stap 1 bevestigen: bepaalt duplicaten tussen bron en doel. Als er
+  /// duplicaten zijn gaat de dialoog naar stap 2, anders wordt direct
+  /// gekopieerd.
+  Future<void> _goToDuplicateCheckOrCopy() async {
     if (!_canConfirm) return;
     setState(() => _busy = true);
-    final sourceId = widget.source.id!;
-    final targetId = _targetId!;
+    final sourceId = _sourceId!;
+    final targetId = widget.target.id!;
+    final duplicates = <_DuplicateEntry>[];
     try {
       if (_copySwitchboards) {
-        await widget.db.copySwitchboardsToInspection(sourceId, targetId);
+        final source = await widget.db.getSwitchboards(sourceId);
+        final target = await widget.db.getSwitchboards(targetId);
+        for (final s in source) {
+          final match = target
+              .where((t) => s.matchesForDuplicate(t))
+              .firstOrNull;
+          if (match != null && s.id != null && match.id != null) {
+            duplicates.add(_DuplicateEntry(
+              category: 'Verdeler',
+              sourceId: s.id!,
+              targetId: match.id!,
+              sourceLabel: _switchboardLabel(s),
+              targetLabel: _switchboardLabel(match),
+            ));
+          }
+        }
+      }
+      if (_copySolar) {
+        final source = await widget.db.getSolarInstallations(sourceId);
+        final target = await widget.db.getSolarInstallations(targetId);
+        for (final s in source) {
+          final match = target
+              .where((t) => s.matchesForDuplicate(t))
+              .firstOrNull;
+          if (match != null && s.id != null && match.id != null) {
+            duplicates.add(_DuplicateEntry(
+              category: 'Zonnestroom-installatie',
+              sourceId: s.id!,
+              targetId: match.id!,
+              sourceLabel: _solarLabel(s),
+              targetLabel: _solarLabel(match),
+            ));
+          }
+        }
+      }
+      if (_copyDefects) {
+        final source = await widget.db.getDefects(sourceId);
+        final target = await widget.db.getDefects(targetId);
+        for (final d in source) {
+          final match = target
+              .where((t) => d.matchesForDuplicate(t))
+              .firstOrNull;
+          if (match != null && d.id != null && match.id != null) {
+            duplicates.add(_DuplicateEntry(
+              category: 'Constatering',
+              sourceId: d.id!,
+              targetId: match.id!,
+              sourceLabel: _defectLabel(d),
+              targetLabel: _defectLabel(match),
+            ));
+          }
+        }
+      }
+      if (!mounted) return;
+      if (duplicates.isEmpty) {
+        await _executeCopy();
+      } else {
+        setState(() {
+          _duplicates = duplicates;
+          _step = 1;
+          _busy = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Controle op duplicaten mislukt: $e')),
+      );
+    }
+  }
+
+  Map<int, DuplicateCopyAction> _decisionsFor(String category) => {
+        for (final d in _duplicates.where((d) => d.category == category))
+          d.sourceId: d.action,
+      };
+
+  Map<int, int> _replaceTargetsFor(String category) => {
+        for (final d in _duplicates.where(
+            (d) => d.category == category && d.action == DuplicateCopyAction.replace))
+          d.sourceId: d.targetId,
+      };
+
+  Future<void> _executeCopy() async {
+    setState(() => _busy = true);
+    final sourceId = _sourceId!;
+    final targetId = widget.target.id!;
+    try {
+      if (_copySwitchboards) {
+        await widget.db.copySwitchboardsToInspection(
+          sourceId,
+          targetId,
+          decisions: _decisionsFor('Verdeler'),
+          replaceTargetIds: _replaceTargetsFor('Verdeler'),
+        );
       }
       if (_copySolar) {
         await widget.db.copySolarInstallationsToInspection(
-            sourceId, targetId);
+          sourceId,
+          targetId,
+          decisions: _decisionsFor('Zonnestroom-installatie'),
+          replaceTargetIds: _replaceTargetsFor('Zonnestroom-installatie'),
+        );
       }
       if (_copyDefects) {
-        await widget.db.copyDefectsToInspection(sourceId, targetId);
+        await widget.db.copyDefectsToInspection(
+          sourceId,
+          targetId,
+          decisions: _decisionsFor('Constatering'),
+          replaceTargetIds: _replaceTargetsFor('Constatering'),
+        );
       }
       if (!mounted) return;
-      Navigator.pop(context, true);
+      Navigator.pop(context, _summaryMessage());
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -1072,102 +1242,237 @@ class _CopySectionsDialogState extends State<_CopySectionsDialog> {
     }
   }
 
+  String _summaryMessage() {
+    if (_duplicates.isEmpty) return 'Onderdelen overgenomen';
+    final skipped = _duplicates
+        .where((d) => d.action == DuplicateCopyAction.skip)
+        .length;
+    final marked = _duplicates
+        .where((d) => d.action == DuplicateCopyAction.copyMarked)
+        .length;
+    final replaced = _duplicates
+        .where((d) => d.action == DuplicateCopyAction.replace)
+        .length;
+    final parts = <String>[];
+    if (marked > 0) parts.add('$marked gemarkeerd');
+    if (replaced > 0) parts.add('$replaced vervangen');
+    if (skipped > 0) parts.add('$skipped overgeslagen');
+    if (parts.isEmpty) return 'Onderdelen overgenomen';
+    return 'Onderdelen overgenomen (${parts.join(', ')})';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = math.min(640.0, screenSize.width * 0.9);
+    final dialogHeight = math.min(680.0, screenSize.height * 0.85);
     return AlertDialog(
-      title: const Text('Onderdelen overnemen'),
+      title: Text(_step == 0 ? 'Onderdelen overnemen' : 'Duplicaten gevonden'),
       content: _loading
           ? const SizedBox(
               height: 80,
               child: Center(child: CircularProgressIndicator()),
             )
           : SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Over te nemen naar:'),
-                  const SizedBox(height: 4),
-                  DropdownButtonFormField<int>(
-                    initialValue: _targetId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: widget.targets
-                        .map((i) => DropdownMenuItem<int>(
-                              value: i.id,
-                              child: Text(
-                                _labels[i.id] ?? 'Inspectie #${i.id}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: _busy
-                        ? null
-                        : (v) {
-                            setState(() => _targetId = v);
-                            _loadTargetCounts();
-                          },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Onderdelen:'),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text('Verdelers ($_switchboardCount)'),
-                    subtitle: Text(_targetCountSubtitle(_targetSwitchboardCount)),
-                    value: _copySwitchboards,
-                    onChanged: _busy || _switchboardCount == 0
-                        ? null
-                        : (v) =>
-                            setState(() => _copySwitchboards = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text('Zonnestroom ($_solarCount)'),
-                    subtitle: Text(_targetCountSubtitle(_targetSolarCount)),
-                    value: _copySolar,
-                    onChanged: _busy || _solarCount == 0
-                        ? null
-                        : (v) => setState(() => _copySolar = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text('Constateringen ($_defectCount)'),
-                    subtitle: Text(_targetCountSubtitle(_targetDefectCount)),
-                    value: _copyDefects,
-                    onChanged: _busy || _defectCount == 0
-                        ? null
-                        : (v) => setState(() => _copyDefects = v ?? false),
-                  ),
-                ],
-              ),
+              width: dialogWidth,
+              child: _step == 0
+                  ? _buildStepOne()
+                  : _buildStepTwo(dialogHeight),
             ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context, false),
-          child: const Text('Annuleren'),
+      actions: _step == 0
+          ? [
+              TextButton(
+                onPressed: _busy ? null : () => Navigator.pop(context, null),
+                child: const Text('Annuleren'),
+              ),
+              FilledButton(
+                onPressed: _canConfirm ? _goToDuplicateCheckOrCopy : null,
+                child: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Overnemen'),
+              ),
+            ]
+          : [
+              TextButton(
+                onPressed:
+                    _busy ? null : () => setState(() => _step = 0),
+                child: const Text('Terug'),
+              ),
+              FilledButton(
+                onPressed: _busy ? null : _executeCopy,
+                child: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Bevestigen'),
+              ),
+            ],
+    );
+  }
+
+  Widget _buildStepOne() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Overnemen van:'),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<int>(
+          initialValue: _sourceId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          items: widget.sources
+              .map((i) => DropdownMenuItem<int>(
+                    value: i.id,
+                    child: Text(
+                      _sourceLabels[i.id] ?? 'Inspectie #${i.id}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ))
+              .toList(),
+          onChanged: _busy
+              ? null
+              : (v) {
+                  setState(() => _sourceId = v);
+                  _loadSourceCounts();
+                },
         ),
-        FilledButton(
-          onPressed: _canConfirm ? _confirm : null,
-          child: _busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Overnemen'),
+        const SizedBox(height: 16),
+        const Text('Onderdelen:'),
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(_sourceCountLabel('Verdelers', _sourceSwitchboardCount)),
+          subtitle: Text('Doel heeft al: $_targetSwitchboardCount'),
+          value: _copySwitchboards,
+          onChanged: _busy || _sourceCountsLoading || _sourceSwitchboardCount == 0
+              ? null
+              : (v) => setState(() => _copySwitchboards = v ?? false),
+        ),
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(_sourceCountLabel('Zonnestroom', _sourceSolarCount)),
+          subtitle: Text('Doel heeft al: $_targetSolarCount'),
+          value: _copySolar,
+          onChanged: _busy || _sourceCountsLoading || _sourceSolarCount == 0
+              ? null
+              : (v) => setState(() => _copySolar = v ?? false),
+        ),
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(_sourceCountLabel('Constateringen', _sourceDefectCount)),
+          subtitle: Text('Doel heeft al: $_targetDefectCount'),
+          value: _copyDefects,
+          onChanged: _busy || _sourceCountsLoading || _sourceDefectCount == 0
+              ? null
+              : (v) => setState(() => _copyDefects = v ?? false),
         ),
       ],
+    );
+  }
+
+  Widget _buildStepTwo(double height) {
+    return SizedBox(
+      height: height,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_duplicates.length} record(en) komen mogelijk al voor in de '
+            'doelinspectie. Kies een actie voor alle duplicaten, of stel '
+            'per record hieronder iets anders in:',
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButton<DuplicateCopyAction>(
+                  isExpanded: true,
+                  value: _bulkAction,
+                  items: _actionLabels.entries
+                      .map((e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value),
+                          ))
+                      .toList(),
+                  onChanged: _busy
+                      ? null
+                      : (v) {
+                          if (v == null) return;
+                          setState(() => _bulkAction = v);
+                        },
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _busy || _duplicates.isEmpty
+                    ? null
+                    : () => setState(() {
+                          for (final d in _duplicates) {
+                            d.action = _bulkAction;
+                          }
+                        }),
+                child: const Text('Toepassen op alle'),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          Expanded(
+            child: ListView.separated(
+              itemCount: _duplicates.length,
+              separatorBuilder: (_, _) => const Divider(height: 16),
+              itemBuilder: (context, index) {
+                final entry = _duplicates[index];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry.category}: ${entry.sourceLabel}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Komt al voor als: ${entry.targetLabel}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    DropdownButton<DuplicateCopyAction>(
+                      isExpanded: true,
+                      value: entry.action,
+                      items: _actionLabels.entries
+                          .map((e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ))
+                          .toList(),
+                      onChanged: _busy
+                          ? null
+                          : (v) {
+                              if (v == null) return;
+                              setState(() => entry.action = v);
+                            },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

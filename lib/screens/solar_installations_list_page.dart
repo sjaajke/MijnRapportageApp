@@ -233,8 +233,22 @@ class _SolarInstallationsListPageState
                                     ? item.location
                                     : l10n.installationNumber(item.id!),
                               ),
-                              subtitle: item.panelCount != null
-                                  ? Text(l10n.panelCount(item.panelCount!))
+                              subtitle: item.isGemarkeerd || item.panelCount != null
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (item.isGemarkeerd) ...[
+                                          const Tooltip(
+                                            message: 'Overgenomen als duplicaat',
+                                            child: Icon(Icons.content_copy,
+                                                color: Colors.orange, size: 16),
+                                          ),
+                                          const SizedBox(width: 4),
+                                        ],
+                                        if (item.panelCount != null)
+                                          Text(l10n.panelCount(item.panelCount!)),
+                                      ],
+                                    )
                                   : null,
                               children: [
                                 // Action row
@@ -384,6 +398,14 @@ class _SolarInstallationsListPageState
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (item.isGemarkeerd) ...[
+                      const Tooltip(
+                        message: 'Overgenomen als duplicaat',
+                        child: Icon(Icons.content_copy,
+                            color: Colors.orange, size: 18),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                     IconButton(
                       icon: const Icon(Icons.delete_outline,
                           color: Colors.red),

@@ -50,6 +50,7 @@ class SolarInstallation {
   final String? photoRoof2Path;
   final String? photoInverter1Path;
   final String? photoInverter2Path;
+  final bool isGemarkeerd;
 
   SolarInstallation({
     this.id,
@@ -78,6 +79,7 @@ class SolarInstallation {
     this.photoRoof2Path,
     this.photoInverter1Path,
     this.photoInverter2Path,
+    this.isGemarkeerd = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -108,6 +110,7 @@ class SolarInstallation {
       'photo_roof2_path': photoRoof2Path,
       'photo_inverter1_path': photoInverter1Path,
       'photo_inverter2_path': photoInverter2Path,
+      'is_gemarkeerd': isGemarkeerd ? 1 : 0,
     };
   }
 
@@ -139,7 +142,15 @@ class SolarInstallation {
       photoRoof2Path: map['photo_roof2_path'] as String?,
       photoInverter1Path: map['photo_inverter1_path'] as String?,
       photoInverter2Path: map['photo_inverter2_path'] as String?,
+      isGemarkeerd: (map['is_gemarkeerd'] as int?) == 1,
     );
+  }
+
+  static String _norm(String s) => s.trim().toLowerCase();
+
+  bool matchesForDuplicate(SolarInstallation other) {
+    return _norm(locationFull) == _norm(other.locationFull) &&
+        _norm(panelSublocation) == _norm(other.panelSublocation);
   }
 
   SolarInstallation copyWith({
@@ -173,6 +184,7 @@ class SolarInstallation {
     bool clearPhotoRoof2Path = false,
     bool clearPhotoInverter1Path = false,
     bool clearPhotoInverter2Path = false,
+    bool? isGemarkeerd,
   }) {
     return SolarInstallation(
       id: id ?? this.id,
@@ -208,6 +220,7 @@ class SolarInstallation {
       photoInverter2Path: clearPhotoInverter2Path
           ? null
           : (photoInverter2Path ?? this.photoInverter2Path),
+      isGemarkeerd: isGemarkeerd ?? this.isGemarkeerd,
     );
   }
 }

@@ -21,7 +21,6 @@ import '../l10n/app_localizations.dart';
 import '../models/final_assessment.dart';
 import '../models/inspection_detail.dart';
 import '../models/report_template.dart';
-import '../models/title_page.dart' as model;
 import '../services/database_service.dart';
 import '../utils/inleiding_placeholders.dart';
 import 'title_page.dart';
@@ -37,6 +36,7 @@ import 'eindbeoordeling_page.dart';
 import 'home_page.dart';
 import 'tekeningen_list_page.dart';
 import 'bijlagen_list_page.dart';
+import 'checklists_list_page.dart';
 import 'herstelverklaring_page.dart';
 import 'herstel_overview_page.dart';
 import 'meetgegevens_page.dart';
@@ -158,18 +158,11 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
     }
 
     // Fill TitlePage fields from template
-    var titlePage = await _db.getTitlePage(widget.inspectionId);
-    if (titlePage == null) {
-      await _db.insertTitlePage(
-          model.TitlePage(inspectionId: widget.inspectionId));
-      titlePage = await _db.getTitlePage(widget.inspectionId);
-    }
-    if (titlePage != null) {
-      await _db.updateTitlePage(titlePage.copyWith(
-        title: template.rapporttitel,
-        subtitle: template.subtitel,
-      ));
-    }
+    var titlePage = await _db.getOrCreateTitlePage(widget.inspectionId);
+    await _db.updateTitlePage(titlePage.copyWith(
+      title: template.rapporttitel,
+      subtitle: template.subtitel,
+    ));
 
     final generalData = await _db.getGeneralData(widget.inspectionId);
 
@@ -423,6 +416,18 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                     MaterialPageRoute(
                       builder: (_) =>
                           BijlagenListPage(inspectionId: widget.inspectionId),
+                    ),
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.checklist,
+                  title: 'Checklijsten',
+                  subtitle: 'Maak eigen checklijsten voor deze inspectie',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ChecklistsListPage(inspectionId: widget.inspectionId),
                     ),
                   ),
                 ),

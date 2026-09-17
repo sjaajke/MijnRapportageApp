@@ -23,7 +23,6 @@ import '../models/general_data.dart';
 import '../models/inspection_detail.dart';
 import '../models/solar_installation.dart';
 import '../models/switchboard.dart';
-import '../models/title_page.dart';
 import 'database_service.dart';
 
 class XmlImportService {
@@ -53,8 +52,8 @@ class XmlImportService {
     // title_page
     final titleEl = root.findElements('title_page').firstOrNull;
     if (titleEl != null) {
-      await _db.insertTitlePage(TitlePage(
-        inspectionId: inspectionId,
+      final titlePage = await _db.getOrCreateTitlePage(inspectionId);
+      await _db.updateTitlePage(titlePage.copyWith(
         title:              _text(titleEl, 'title'),
         inspectionDate:     _text(titleEl, 'inspection_date'),
         identificationCode: _text(titleEl, 'identification_code'),

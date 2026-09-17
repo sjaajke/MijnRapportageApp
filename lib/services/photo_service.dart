@@ -61,12 +61,22 @@ class PhotoService {
   }
 
   Future<String> _saveImage(XFile image, int? inspectionId) async {
+    return _copyIntoPhotosDir(image.path, inspectionId);
+  }
+
+  /// Copies a dropped file (drag-and-drop on Windows/macOS) into the photos
+  /// directory, using the same naming convention as [_saveImage].
+  Future<String> importDroppedFile(String sourcePath, {int? inspectionId}) {
+    return _copyIntoPhotosDir(sourcePath, inspectionId);
+  }
+
+  Future<String> _copyIntoPhotosDir(String sourcePath, int? inspectionId) async {
     final dir = await _getPhotosDir(inspectionId);
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final ext = p.extension(image.path).isNotEmpty ? p.extension(image.path) : '.jpg';
+    final ext = p.extension(sourcePath).isNotEmpty ? p.extension(sourcePath) : '.jpg';
     final fileName = '$timestamp$ext';
     final savedPath = p.join(dir, fileName);
-    await File(image.path).copy(savedPath);
+    await File(sourcePath).copy(savedPath);
     return savedPath;
   }
 

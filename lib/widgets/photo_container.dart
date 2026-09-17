@@ -16,10 +16,16 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:io';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import '../services/photo_service.dart';
 
-class PhotoContainer extends StatelessWidget {
+const _imageExtensions = {
+  '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif',
+};
+
+class PhotoContainer extends StatefulWidget {
   final String? photoPath;
   final String label;
   final ValueChanged<String> onPhotoSelected;
@@ -42,22 +48,35 @@ class PhotoContainer extends StatelessWidget {
   });
 
   @override
+  State<PhotoContainer> createState() => _PhotoContainerState();
+}
+
+class _PhotoContainerState extends State<PhotoContainer> {
+  bool _dragging = false;
+
+  @override
   Widget build(BuildContext context) {
-    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+    final hasPhoto =
+        widget.photoPath != null && File(widget.photoPath!).existsSync();
     final photoBox = Container(
-      height: aspectRatio == null ? height : null,
-      width: width ?? double.infinity,
+      height: widget.aspectRatio == null ? widget.height : null,
+      width: widget.width ?? double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade400),
+        border: Border.all(
+          color: _dragging ? Colors.blue : Colors.grey.shade400,
+          width: _dragging ? 2 : 1,
+        ),
         borderRadius: BorderRadius.circular(8),
-        color: Colors.grey.shade100,
+        color: _dragging
+            ? Colors.blue.withValues(alpha: 0.08)
+            : Colors.grey.shade100,
       ),
       child: hasPhoto
           ? ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.file(
-                File(photoPath!),
-                fit: fit,
+                File(widget.photoPath!),
+                fit: widget.fit,
                 width: double.infinity,
                 height: double.infinity,
               ),
@@ -65,13 +84,18 @@ class PhotoContainer extends StatelessWidget {
           : Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_a_photo,
-                    size: 40, color: Colors.grey.shade500),
+                Icon(
+                  _dragging ? Icons.file_download_outlined : Icons.add_a_photo,
+                  size: 40,
+                  color: _dragging ? Colors.blue : Colors.grey.shade500,
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  label,
+                  _dragging ? 'Sleep hier om toe te voegen' : widget.label,
                   style: TextStyle(
-                      color: Colors.grey.shade600, fontSize: 14),
+                    color: _dragging ? Colors.blue.shade700 : Colors.grey.shade600,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -79,12 +103,19 @@ class PhotoContainer extends StatelessWidget {
 
     final photoTile = GestureDetector(
       onTap: () => _showPhotoOptions(context),
-      child: aspectRatio == null
+      child: widget.aspectRatio == null
           ? photoBox
           : AspectRatio(
-              aspectRatio: aspectRatio!,
+              aspectRatio: widget.aspectRatio!,
               child: photoBox,
             ),
+    );
+
+    final dropTarget = DropTarget(
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: _handleDrop,
+      child: photoTile,
     );
 
     return Padding(
@@ -92,17 +123,16 @@ class PhotoContainer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (label.isNotEmpty)
+          if (widget.label.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4.0),
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.grey)),
+              child: Text(widget.label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ),
-          if (hasPhoto && onPhotoRemoved != null)
+          if (hasPhoto && widget.onPhotoRemoved != null)
             Stack(
               children: [
-                photoTile,
+                dropTarget,
                 Positioned(
                   top: 4,
                   right: 4,
@@ -111,7 +141,7 @@ class PhotoContainer extends StatelessWidget {
                     shape: const CircleBorder(),
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: onPhotoRemoved,
+                      onTap: widget.onPhotoRemoved,
                       child: const Padding(
                         padding: EdgeInsets.all(6.0),
                         child: Icon(Icons.delete_outline,
@@ -123,10 +153,19 @@ class PhotoContainer extends StatelessWidget {
               ],
             )
           else
-            photoTile,
+            dropTarget,
         ],
       ),
     );
+  }
+
+  Future<void> _handleDrop(DropDoneDetails details) async {
+    setState(() => _dragging = false);
+    final imageFiles = details.files.where(
+        (f) => _imageExtensions.contains(p.extension(f.path).toLowerCase()));
+    if (imageFiles.isEmpty) return;
+    final path = await PhotoService().importDroppedFile(imageFiles.first.path);
+    widget.onPhotoSelected(path);
   }
 
   void _showPhotoOptions(BuildContext context) {
@@ -141,7 +180,7 @@ class PhotoContainer extends StatelessWidget {
               onTap: () async {
                 Navigator.pop(ctx);
                 final path = await PhotoService().takePhoto();
-                if (path != null) onPhotoSelected(path);
+                if (path != null) widget.onPhotoSelected(path);
               },
             ),
             ListTile(
@@ -150,7 +189,7 @@ class PhotoContainer extends StatelessWidget {
               onTap: () async {
                 Navigator.pop(ctx);
                 final path = await PhotoService().pickFromGallery();
-                if (path != null) onPhotoSelected(path);
+                if (path != null) widget.onPhotoSelected(path);
               },
             ),
           ],

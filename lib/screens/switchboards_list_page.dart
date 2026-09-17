@@ -175,6 +175,14 @@ class _SwitchboardsListPageState extends State<SwitchboardsListPage> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (sb.isGemarkeerd) ...[
+                  const Tooltip(
+                    message: 'Overgenomen als duplicaat',
+                    child: Icon(Icons.content_copy,
+                        color: Colors.orange, size: 18),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   onPressed: () => _deleteSwitchboard(sb),

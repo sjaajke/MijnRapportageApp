@@ -50,6 +50,7 @@ class Switchboard {
   final String opmerking;
   final bool includeChecklistInPdf;
   final int sortOrder;
+  final bool isGemarkeerd;
 
   static const List<String> visualInspectionItems = [
     'Verdeler eenduidig herkenbaar',
@@ -101,6 +102,7 @@ class Switchboard {
     this.opmerking = '',
     this.includeChecklistInPdf = true,
     this.sortOrder = 0,
+    this.isGemarkeerd = false,
   })  : visualInspection = visualInspection ??
             {for (var item in visualInspectionItems) item: 'N.v.t.'},
         measurements = measurements ??
@@ -136,6 +138,7 @@ class Switchboard {
       'opmerking': opmerking,
       'include_checklist_in_pdf': includeChecklistInPdf ? 1 : 0,
       'sort_order': sortOrder,
+      'is_gemarkeerd': isGemarkeerd ? 1 : 0,
     };
   }
 
@@ -183,7 +186,15 @@ class Switchboard {
       opmerking: map['opmerking'] as String? ?? '',
       includeChecklistInPdf: (map['include_checklist_in_pdf'] as int?) != 0,
       sortOrder: map['sort_order'] as int? ?? 0,
+      isGemarkeerd: (map['is_gemarkeerd'] as int?) == 1,
     );
+  }
+
+  static String _norm(String s) => s.trim().toLowerCase();
+
+  bool matchesForDuplicate(Switchboard other) {
+    return _norm(name) == _norm(other.name) &&
+        _norm(locationFull) == _norm(other.locationFull);
   }
 
   Switchboard copyWith({
@@ -215,6 +226,7 @@ class Switchboard {
     String? opmerking,
     bool? includeChecklistInPdf,
     int? sortOrder,
+    bool? isGemarkeerd,
   }) {
     return Switchboard(
       id: id ?? this.id,
@@ -244,6 +256,7 @@ class Switchboard {
       opmerking: opmerking ?? this.opmerking,
       includeChecklistInPdf: includeChecklistInPdf ?? this.includeChecklistInPdf,
       sortOrder: sortOrder ?? this.sortOrder,
+      isGemarkeerd: isGemarkeerd ?? this.isGemarkeerd,
     );
   }
 }

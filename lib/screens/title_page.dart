@@ -59,42 +59,19 @@ class _TitlePageScreenState extends State<TitlePageScreen> {
   }
 
   Future<void> _loadData() async {
-    var tp = await _db.getTitlePage(widget.inspectionId);
-    if (tp == null) {
-      final d = await _db.getTitlePageLayoutDefaults();
-      await _db.insertTitlePage(
-        model.TitlePage(
-          inspectionId: widget.inspectionId,
-          inspectionDate: DateFormat('dd-MM-yyyy').format(DateTime.now()),
-          titleX: d?['title_x'] ?? 0.5,       titleY: d?['title_y'] ?? 0.15,
-          titleW: d?['title_w'] ?? 0.80,       titleH: d?['title_h'] ?? 0.10,
-          subtitleX: d?['subtitle_x'] ?? 0.5,  subtitleY: d?['subtitle_y'] ?? 0.26,
-          subtitleW: d?['subtitle_w'] ?? 0.70,  subtitleH: d?['subtitle_h'] ?? 0.07,
-          photoX: d?['photo_x'] ?? 0.5,        photoY: d?['photo_y'] ?? 0.50,
-          photoW: d?['photo_w'] ?? 0.60,        photoH: d?['photo_h'] ?? 0.35,
-          dateX: d?['date_x'] ?? 0.5,          dateY: d?['date_y'] ?? 0.78,
-          dateW: d?['date_w'] ?? 0.70,          dateH: d?['date_h'] ?? 0.065,
-          codeX: d?['code_x'] ?? 0.5,          codeY: d?['code_y'] ?? 0.86,
-          codeW: d?['code_w'] ?? 0.70,          codeH: d?['code_h'] ?? 0.065,
-          projectX: d?['project_x'] ?? 0.5,    projectY: d?['project_y'] ?? 0.93,
-          projectW: d?['project_w'] ?? 0.70,    projectH: d?['project_h'] ?? 0.065,
-          logoX: d?['logo_x'] ?? 0.82,         logoY: d?['logo_y'] ?? 0.07,
-          logoW: d?['logo_w'] ?? 0.30,          logoH: d?['logo_h'] ?? 0.12,
-          addressNameX: d?['address_name_x'] ?? 0.5,  addressNameY: d?['address_name_y'] ?? 0.72,
-          addressNameW: d?['address_name_w'] ?? 0.70,  addressNameH: d?['address_name_h'] ?? 0.065,
-        ),
-      );
-      tp = await _db.getTitlePage(widget.inspectionId);
+    var tp = await _db.getOrCreateTitlePage(widget.inspectionId);
+    if (tp.inspectionDate.isEmpty) {
+      tp = tp.copyWith(
+          inspectionDate: DateFormat('dd-MM-yyyy').format(DateTime.now()));
+      await _db.updateTitlePage(tp);
     }
 
-    if (tp != null) {
-      _titleController.text = tp.title;
-      _subtitleController.text = tp.subtitle;
-      _dateController.text = tp.inspectionDate;
-      _dateEndController.text = tp.inspectionDateEnd;
-      _codeController.text = tp.identificationCode;
-      _projectController.text = tp.projectNumber;
-    }
+    _titleController.text = tp.title;
+    _subtitleController.text = tp.subtitle;
+    _dateController.text = tp.inspectionDate;
+    _dateEndController.text = tp.inspectionDateEnd;
+    _codeController.text = tp.identificationCode;
+    _projectController.text = tp.projectNumber;
 
     final companyDetails = await _db.getCompanyDetails();
     final generalData = await _db.getGeneralData(widget.inspectionId);

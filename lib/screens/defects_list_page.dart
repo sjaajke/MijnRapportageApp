@@ -333,6 +333,15 @@ class _DefectsListPageState extends State<DefectsListPage> {
                 : Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (defect.isGemarkeerd)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Tooltip(
+                            message: 'Overgenomen als duplicaat',
+                            child: Icon(Icons.content_copy,
+                                color: Colors.orange, size: 18),
+                          ),
+                        ),
                       if (_herstelStatus[defect.id] == true)
                         Tooltip(
                           message: 'Hersteld',
