@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
+import '../models/inspection_module.dart';
 import '../models/report_template.dart';
 import '../services/database_service.dart';
 import '../services/photo_service.dart';
@@ -54,6 +55,7 @@ const _reportTemplateColumns = [
   'Het elektrisch materieel is getoets aan',
   'Toelichting',
   'Melding gevaarlijke situatie',
+  'Verborgen onderdelen',
 ];
 
 List<String> _reportTemplateRowValues(ReportTemplate t) => [
@@ -82,6 +84,7 @@ List<String> _reportTemplateRowValues(ReportTemplate t) => [
       t.elektrischMaterieelGetoetst,
       t.inleidingToelichting,
       t.meldingGevaarlijkeSituatie,
+      t.hiddenModules,
     ];
 
 class ReportTemplatesPage extends StatefulWidget {
@@ -253,6 +256,9 @@ class _ReportTemplatesPageState extends State<ReportTemplatesPage> {
           inleidingToelichting: cell(row, 'Toelichting'),
           meldingGevaarlijkeSituatie:
               cell(row, 'Melding gevaarlijke situatie'),
+          hiddenModules: parseHiddenModules(cell(row, 'Verborgen onderdelen'))
+              .where((k) => inspectionModules.any((m) => m.key == k))
+              .join(','),
         );
 
         final wasInserted = await _db.upsertReportTemplateByType(template);

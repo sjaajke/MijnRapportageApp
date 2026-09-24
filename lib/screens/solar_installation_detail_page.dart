@@ -17,6 +17,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../widgets/inspection_nav_bar.dart';
 import '../l10n/app_localizations.dart';
 import '../models/solar_installation.dart';
 import '../models/solar_inverter.dart';
@@ -28,12 +29,6 @@ import '../widgets/location_picker_dialog.dart';
 import '../widgets/location_row.dart';
 import '../widgets/photo_container.dart';
 import '../widgets/section_header.dart';
-import 'home_page.dart';
-import 'inspection_menu_page.dart';
-import 'switchboards_list_page.dart';
-import 'solar_installations_list_page.dart';
-import 'noodverlichting_list_page.dart';
-import 'defects_list_page.dart';
 import 'solar_inverter_detail_page.dart';
 
 class SolarInstallationDetailPage extends StatelessWidget {
@@ -49,7 +44,7 @@ class SolarInstallationDetailPage extends StatelessWidget {
       appBar: AppBar(title: Text(l10n.solarInstallation)),
       body: Column(
         children: [
-          _NavBar(inspectionId: inspectionId),
+          InspectionNavBar(inspectionId: inspectionId, current: NavSection.solar),
           Expanded(
             child: SolarInstallationDetailView(
               key: ValueKey(installationId),
@@ -1053,61 +1048,6 @@ class _SolarInstallationDetailViewState
               child: Text(l10n.save),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavBar extends StatelessWidget {
-  final int inspectionId;
-  const _NavBar({required this.inspectionId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 2,
-      child: SizedBox(
-        height: 56,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _btn(context, Icons.list_outlined, 'Inspecties',
-                () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-                      builder: (_) => HomePage()), (route) => false)),
-            _btn(context, Icons.home_outlined, 'Inspectie',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => InspectionMenuPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.lan, 'Verdelers',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.solar_power, 'Zonnestroom',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.emergency, 'Noodverlichting',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => NoodverlichtingListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.warning_amber, 'Gebreken',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => DefectsListPage(inspectionId: inspectionId)))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _btn(BuildContext context, IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 22, color: const Color(0xFF1976D2)),
-            Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF1976D2))),
-          ],
-        ),
       ),
     );
   }

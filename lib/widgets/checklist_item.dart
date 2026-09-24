@@ -22,11 +22,16 @@ class ChecklistItem extends StatelessWidget {
   final String value; // 'Ja', 'Nee', 'N.v.t.'
   final ValueChanged<String> onChanged;
 
+  /// Whether each radio button repeats its option text ('Ja'/'Nee'/'N.v.t.').
+  /// Set to false when a column header already shows these labels once.
+  final bool showOptionLabels;
+
   const ChecklistItem({
     super.key,
     required this.label,
     required this.value,
     required this.onChanged,
+    this.showOptionLabels = true,
   });
 
   @override
@@ -49,27 +54,29 @@ class ChecklistItem extends StatelessWidget {
 
   Widget _buildRadio(String option) {
     final selected = value == option;
+    final icon = SizedBox(
+      width: 24,
+      height: 24,
+      child: selected
+          ? Icon(Icons.radio_button_checked,
+              size: 20, color: Colors.blue.shade700)
+          : Icon(Icons.radio_button_unchecked, size: 20, color: Colors.grey),
+    );
     return Expanded(
       child: GestureDetector(
         onTap: () => onChanged(option),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: selected
-                  ? Icon(Icons.radio_button_checked,
-                      size: 20, color: Colors.blue.shade700)
-                  : Icon(Icons.radio_button_unchecked,
-                      size: 20, color: Colors.grey),
-            ),
-            const SizedBox(width: 2),
-            Flexible(
-              child: Text(option, style: const TextStyle(fontSize: 12)),
-            ),
-          ],
-        ),
+        child: showOptionLabels
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  icon,
+                  const SizedBox(width: 2),
+                  Flexible(
+                    child: Text(option, style: const TextStyle(fontSize: 12)),
+                  ),
+                ],
+              )
+            : Center(child: icon),
       ),
     );
   }

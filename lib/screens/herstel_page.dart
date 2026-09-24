@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import '../models/herstel.dart';
 import '../services/database_service.dart';
+import '../services/herstel_defaults_service.dart';
 import '../services/herstel_sync_service.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/photo_container.dart';
@@ -134,6 +135,43 @@ class _HerstelPageState extends State<HerstelPage> {
     }
   }
 
+  /// Bij het omzetten naar "hersteld" worden lege velden automatisch gevuld
+  /// met de standaard uitvoerder en de datum van vandaag.
+  Future<void> _setHersteld(bool v) async {
+    if (v) {
+      if (_naamController.text.trim().isEmpty) {
+        _naamController.text = await HerstelDefaultsService.getUitvoerder();
+      }
+      if (_datumController.text.trim().isEmpty) {
+        _datumController.text = HerstelDefaultsService.vandaag();
+      }
+    }
+    if (!mounted) return;
+    setState(() => _herstel = _herstel!.copyWith(isHersteld: v));
+    _save();
+  }
+
+  Future<void> _stelStandaardUitvoerderIn() async {
+    final naam = await HerstelDefaultsService.showInstellenDialog(
+      context,
+      voorstel: _naamController.text,
+    );
+    if (naam == null || !mounted) return;
+    if (_naamController.text.trim().isEmpty) {
+      _naamController.text = naam;
+      _save();
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          naam.isEmpty
+              ? 'Standaard uitvoerder verwijderd'
+              : 'Standaard uitvoerder ingesteld: $naam',
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickDatum() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -214,12 +252,7 @@ class _HerstelPageState extends State<HerstelPage> {
                 ),
                 value: herstel.isHersteld,
                 activeThumbColor: Colors.green.shade600,
-                onChanged: (v) {
-                  setState(() {
-                    _herstel = herstel.copyWith(isHersteld: v);
-                  });
-                  _save();
-                },
+                onChanged: _setHersteld,
               ),
             ),
 
@@ -231,6 +264,11 @@ class _HerstelPageState extends State<HerstelPage> {
               label: 'Naam uitvoerder',
               controller: _naamController,
               onChanged: (_) => _save(),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.person_pin_outlined),
+                tooltip: 'Standaard uitvoerder instellen',
+                onPressed: _stelStandaardUitvoerderIn,
+              ),
             ),
             CustomTextField(
               label: 'Datum herstel',

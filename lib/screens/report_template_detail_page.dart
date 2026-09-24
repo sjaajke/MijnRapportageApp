@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../models/inspection_module.dart';
 import '../models/report_template.dart';
 import '../services/database_service.dart';
 import '../widgets/custom_text_field.dart';
@@ -60,6 +61,8 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
   final _eindbeoordelingOKE = TextEditingController();
   final _meldingGevaarlijkeSituatie = TextEditingController();
 
+  Set<String> _hiddenModules = {};
+
   bool get _isNew => widget.template == null;
 
   @override
@@ -92,6 +95,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
       _volgendInspectie.text = t.volgendInspectie;
       _eindbeoordelingOKE.text = t.eindbeoordelingOKE;
       _meldingGevaarlijkeSituatie.text = t.meldingGevaarlijkeSituatie;
+      _hiddenModules = parseHiddenModules(t.hiddenModules);
     }
   }
 
@@ -153,6 +157,7 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
       volgendInspectie: _volgendInspectie.text,
       eindbeoordelingOKE: _eindbeoordelingOKE.text,
       meldingGevaarlijkeSituatie: _meldingGevaarlijkeSituatie.text,
+      hiddenModules: _hiddenModules.join(','),
     );
 
     if (_isNew) {
@@ -359,6 +364,27 @@ class _ReportTemplateDetailPageState extends State<ReportTemplateDetailPage> {
                   controller: _meldingGevaarlijkeSituatie,
                   maxLines: 6,
                 ),
+              ],
+            ),
+
+            // ── Onderdelen tonen/verbergen ─────────────────────────────────
+            _Section(
+              title: 'Onderdelen tonen/verbergen',
+              children: [
+                for (final module in inspectionModules)
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(module.label),
+                    value: !_hiddenModules.contains(module.key),
+                    onChanged: (checked) => setState(() {
+                      if (checked == true) {
+                        _hiddenModules.remove(module.key);
+                      } else {
+                        _hiddenModules.add(module.key);
+                      }
+                    }),
+                  ),
               ],
             ),
 

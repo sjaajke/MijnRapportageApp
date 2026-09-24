@@ -16,6 +16,7 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import '../widgets/inspection_nav_bar.dart';
 import '../l10n/app_localizations.dart';
 import '../models/inspection_detail.dart';
 import '../models/standard.dart';
@@ -25,12 +26,7 @@ import '../services/database_service.dart';
 import '../widgets/custom_dropdown.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/section_header.dart';
-import 'home_page.dart';
 import 'inspection_menu_page.dart';
-import 'switchboards_list_page.dart';
-import 'solar_installations_list_page.dart';
-import 'noodverlichting_list_page.dart';
-import 'defects_list_page.dart';
 
 class InspectionDetailsPage extends StatefulWidget {
   final int inspectionId;
@@ -419,7 +415,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
         ),
         body: Column(
           children: [
-            _NavBar(inspectionId: widget.inspectionId),
+            InspectionNavBar(inspectionId: widget.inspectionId),
             const Expanded(child: Center(child: CircularProgressIndicator())),
           ],
         ),
@@ -432,7 +428,7 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
       appBar: AppBar(title: Text(l10n.inspectionDetails)),
       body: Column(
         children: [
-          _NavBar(inspectionId: widget.inspectionId),
+          InspectionNavBar(inspectionId: widget.inspectionId),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -828,120 +824,6 @@ class _InspectionDetailsPageState extends State<InspectionDetailsPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavBar extends StatelessWidget {
-  final int inspectionId;
-  const _NavBar({required this.inspectionId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 2,
-      child: SizedBox(
-        height: 56,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _btn(
-              context,
-              Icons.list_outlined,
-              'Inspecties',
-              () => Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => HomePage()),
-                (route) => false,
-              ),
-            ),
-            _btn(
-              context,
-              Icons.home_outlined,
-              'Inspectie',
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      InspectionMenuPage(inspectionId: inspectionId),
-                ),
-              ),
-            ),
-            _btn(
-              context,
-              Icons.lan,
-              'Verdelers',
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      SwitchboardsListPage(inspectionId: inspectionId),
-                ),
-              ),
-            ),
-            _btn(
-              context,
-              Icons.solar_power,
-              'Zonnestroom',
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      SolarInstallationsListPage(inspectionId: inspectionId),
-                ),
-              ),
-            ),
-            _btn(
-              context,
-              Icons.emergency,
-              'Noodverlichting',
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      NoodverlichtingListPage(inspectionId: inspectionId),
-                ),
-              ),
-            ),
-            _btn(
-              context,
-              Icons.warning_amber,
-              'Gebreken',
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DefectsListPage(inspectionId: inspectionId),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _btn(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 22, color: const Color(0xFF1976D2)),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF1976D2)),
-            ),
-          ],
-        ),
       ),
     );
   }

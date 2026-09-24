@@ -28,6 +28,7 @@ class CustomTextField extends StatelessWidget {
   final bool readOnly;
   final VoidCallback? onTap;
   final VoidCallback? onClear;
+  final Widget? suffixIcon;
   final bool expands;
 
   const CustomTextField({
@@ -42,6 +43,7 @@ class CustomTextField extends StatelessWidget {
     this.readOnly = false,
     this.onTap,
     this.onClear,
+    this.suffixIcon,
     this.expands = false,
   });
 
@@ -74,7 +76,7 @@ class CustomTextField extends StatelessWidget {
                   onPressed: onClear,
                   tooltip: 'Wissen',
                 )
-              : null,
+              : suffixIcon,
         ),
         style: const TextStyle(fontSize: 14),
       ),

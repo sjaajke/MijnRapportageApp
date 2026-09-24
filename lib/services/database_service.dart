@@ -41,6 +41,7 @@ import '../models/rapport_constatering.dart';
 import '../models/steekproef_item.dart';
 import '../models/bijlage.dart';
 import '../models/checklist.dart';
+import '../models/checklist_template.dart';
 import '../models/tekening.dart';
 import '../models/tekening_pin.dart';
 import '../models/herstel.dart';
@@ -449,7 +450,8 @@ class DatabaseService {
         volgend_inspectie TEXT DEFAULT '',
         eindbeoordeling_oke TEXT DEFAULT '',
         melding_gevaarlijke_situatie TEXT DEFAULT '',
-        herstel_verklaring TEXT DEFAULT ''
+        herstel_verklaring TEXT DEFAULT '',
+        hidden_modules TEXT DEFAULT ''
       )
     ''');
     // Migrate existing tables that predate these columns
@@ -463,6 +465,7 @@ class DatabaseService {
       'eindbeoordeling_oke': "TEXT DEFAULT ''",
       'melding_gevaarlijke_situatie': "TEXT DEFAULT ''",
       'herstel_verklaring': "TEXT DEFAULT ''",
+      'hidden_modules': "TEXT DEFAULT ''",
     };
     for (final entry in toAdd.entries) {
       if (!existing.contains(entry.key)) {
@@ -618,7 +621,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 30,
+      version: 32,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
@@ -632,6 +635,7 @@ class DatabaseService {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'draft',
+        hidden_modules TEXT NOT NULL DEFAULT '',
         sync_status TEXT NOT NULL DEFAULT 'pending'
       )
     ''');
@@ -979,6 +983,15 @@ class DatabaseService {
         items_json TEXT DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE checklist_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT DEFAULT '',
+        items_json TEXT DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -1945,6 +1958,27 @@ class DatabaseService {
         )
       ''');
     }
+    if (oldVersion < 31) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS checklist_templates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT DEFAULT '',
+          items_json TEXT DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+    }
+    if (oldVersion < 32) {
+      final inspectionCols =
+          await db.rawQuery("PRAGMA table_info(inspections)");
+      final inspectionExisting =
+          inspectionCols.map((c) => c['name'] as String).toSet();
+      if (!inspectionExisting.contains('hidden_modules')) {
+        await db.execute(
+          "ALTER TABLE inspections ADD COLUMN hidden_modules TEXT NOT NULL DEFAULT ''",
+        );
+      }
+    }
   }
 
   static const _defaultCableTypeStandards = [
@@ -2306,6 +2340,20 @@ class DatabaseService {
     await db.update(
       'inspections',
       {'status': status, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateInspectionHiddenModules(
+      int id, Set<String> hiddenModules) async {
+    final db = await database;
+    await db.update(
+      'inspections',
+      {
+        'hidden_modules': hiddenModules.join(','),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -4010,6 +4058,7 @@ class DatabaseService {
         volgendInspectie: template.volgendInspectie,
         eindbeoordelingOKE: template.eindbeoordelingOKE,
         meldingGevaarlijkeSituatie: template.meldingGevaarlijkeSituatie,
+        hiddenModules: template.hiddenModules,
       );
       await db.update(
         'report_templates',
@@ -4306,6 +4355,76 @@ class DatabaseService {
     for (var i = 0; i < orderedIds.length; i++) {
       batch.update(
         'checklists',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [orderedIds[i]],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // ── Checklist templates (Standaard checklijsten) ───────────────────────────
+
+  Future<List<ChecklistTemplate>> getChecklistTemplates() async {
+    final db = await database;
+    final maps = await db.query(
+      'checklist_templates',
+      orderBy: 'sort_order ASC, id ASC',
+    );
+    return maps.map(ChecklistTemplate.fromMap).toList();
+  }
+
+  Future<int> insertChecklistTemplate(ChecklistTemplate template) async {
+    final db = await database;
+    return await db.insert('checklist_templates', template.toMap());
+  }
+
+  Future<void> updateChecklistTemplate(ChecklistTemplate template) async {
+    final db = await database;
+    await db.update(
+      'checklist_templates',
+      template.toMap(),
+      where: 'id = ?',
+      whereArgs: [template.id],
+    );
+  }
+
+  Future<void> deleteChecklistTemplate(int id) async {
+    final db = await database;
+    await db.delete('checklist_templates', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Inserts a new template, or updates an existing one matched by name
+  /// (used for Excel import). Returns true if a new row was inserted.
+  Future<bool> upsertChecklistTemplate(ChecklistTemplate template) async {
+    final db = await database;
+    final existing = await db.query(
+      'checklist_templates',
+      where: 'name = ?',
+      whereArgs: [template.name],
+    );
+    if (existing.isNotEmpty) {
+      final id = existing.first['id'] as int;
+      final sortOrder = existing.first['sort_order'] as int;
+      await db.update(
+        'checklist_templates',
+        template.copyWith(id: id, sortOrder: sortOrder).toMap(),
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return false;
+    } else {
+      await db.insert('checklist_templates', template.toMap());
+      return true;
+    }
+  }
+
+  Future<void> updateChecklistTemplateOrder(List<int> orderedIds) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < orderedIds.length; i++) {
+      batch.update(
+        'checklist_templates',
         {'sort_order': i},
         where: 'id = ?',
         whereArgs: [orderedIds[i]],

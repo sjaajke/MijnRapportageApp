@@ -320,14 +320,6 @@ class _DownloadPageState extends State<DownloadPage> {
       for (int i = 0; i < r.constateringen.length; i++) {
         final c = r.constateringen[i];
 
-        // Location: concatenate the three location parts, skip empty
-        final locParts = [
-          c.field('Locatie_Gebouwdeel'),
-          c.field('Locatie_Verdieping'),
-          c.field('Locatie_Ruimte'),
-        ].where((v) => v.isNotEmpty).toList();
-        final location = locParts.join(' ');
-
         final descParts = [
           c.field('Afwijking'),
           c.field('afwijkingen'),
@@ -352,7 +344,11 @@ class _DownloadPageState extends State<DownloadPage> {
           Defect(
             inspectionId: widget.inspectionId,
             description: description,
-            location: location,
+            location: c.field('Locatie_Gebouwdeel'),
+            locationA: c.field('Locatie_Verdieping'),
+            locationB: c.field('Locatie_Ruimte'),
+            installationComponent: c.field('locatietijdelijk'),
+            naamCode: c.field('verdelerNaam'),
             classification: classification,
             photo1Path: photo1Path,
             photo2Path: photo2Path,
@@ -372,13 +368,6 @@ class _DownloadPageState extends State<DownloadPage> {
 
       for (int i = 0; i < r.sviRecords.length; i++) {
         final s = r.sviRecords[i];
-
-        // Location: concatenate the three location parts, skip empty
-        final locParts = [
-          s.field('Locatie_Gebouwdeel'),
-          s.field('Locatie_Verdieping'),
-          s.field('Locatie_Ruimte'),
-        ].where((v) => v.isNotEmpty).toList();
 
         // Protection: combine karakteristiek + stroom (e.g. "B 40")
         final protKar = s.field(
@@ -448,7 +437,10 @@ class _DownloadPageState extends State<DownloadPage> {
           Switchboard(
             inspectionId: widget.inspectionId,
             name: s.field('verdelerNaam'),
-            location: locParts.join(' '),
+            location: s.field('Locatie_Gebouwdeel'),
+            locationA: s.field('Locatie_Verdieping'),
+            locationB: s.field('Locatie_Ruimte'),
+            installationComponent: s.field('locatietijdelijk'),
             system: s.field('Stelsel').isNotEmpty ? s.field('Stelsel') : 'TN-S',
             mainSwitchCurrent: parseNum(
               s.field('verdelerHoofdschakelaar 1_Vermogen'),

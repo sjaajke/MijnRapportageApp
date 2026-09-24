@@ -21,6 +21,7 @@ import 'company_details_page.dart';
 import 'privacy_screen.dart';
 import 'rapport_constateringen_page.dart';
 import 'report_templates_page.dart';
+import 'standard_checklists_page.dart';
 import 'standards_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -73,6 +74,17 @@ class SettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const RapportConstateringenPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.fact_check_outlined),
+            title: const Text('Standaard checklijsten'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const StandardChecklistsPage()),
               );
             },
           ),

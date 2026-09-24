@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import '../pdf_preview_page.dart';
 import 'package:flutter/material.dart';
 import '../../models/nen_bouwdeel.dart';
 import '../../models/nen_gebrek.dart';
@@ -321,8 +322,18 @@ class _Nen2767OverviewPageState extends State<Nen2767OverviewPage> {
               title: const Text('PDF-rapport'),
               onTap: () async {
                 Navigator.pop(ctx);
-                await Nen2767PdfExportService()
-                    .exportAndShare(widget.inspectionId);
+                final path = await Nen2767PdfExportService()
+                    .generatePdf(widget.inspectionId);
+                if (!mounted) return;
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PdfPreviewPage(
+                      path: path,
+                      title: 'PDF-rapport',
+                    ),
+                  ),
+                );
               },
             ),
             ListTile(

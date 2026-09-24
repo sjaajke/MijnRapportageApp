@@ -778,8 +778,9 @@ class _CompanyDetailsPageState extends State<CompanyDetailsPage> {
 
     final line2 = <String>[];
     if (i.kalibratiedatum.isNotEmpty) line2.add('Kal.: ${i.kalibratiedatum}');
-    if (i.herkalibratiedatum.isNotEmpty)
+    if (i.herkalibratiedatum.isNotEmpty) {
       line2.add('Herk.: ${i.herkalibratiedatum}');
+    }
 
     if (line1.isEmpty && line2.isEmpty) return null;
 

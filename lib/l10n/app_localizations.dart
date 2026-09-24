@@ -48,7 +48,6 @@ class AppLocalizations {
   String get noInspections => isNl
       ? 'Geen inspecties gevonden.\nMaak een nieuwe inspectie aan.'
       : 'No inspections found.\nCreate a new inspection.';
-  String get exportXml => isNl ? 'Export XML' : 'Export XML';
   String get generatePdf => isNl ? 'PDF Rapport' : 'Generate PDF';
   String get generateConstateriungPdf =>
       isNl ? 'PDF Constatering' : 'Generate PDF Findings';
@@ -62,20 +61,17 @@ class AppLocalizations {
   String get generateNoodverlichtingInternPdf => isNl
       ? 'PDF Noodverlichting intern'
       : 'Generate PDF Emergency Lighting (internal)';
-  String get samplePdf => isNl ? 'Voorbeeld PDF' : 'Sample PDF';
-  String xmlExported(String path) =>
-      isNl ? 'XML geëxporteerd: $path' : 'XML exported: $path';
   String exportFailed(Object e) =>
       isNl ? 'Export mislukt: $e' : 'Export failed: $e';
   String pdfFailed(Object e) =>
       isNl ? 'PDF generatie mislukt: $e' : 'PDF generation failed: $e';
-  String samplePdfFailed(Object e) =>
-      isNl ? 'Voorbeeld PDF mislukt: $e' : 'Sample PDF failed: $e';
   String inspectionNumber(int id) =>
       isNl ? 'Inspectie #$id' : 'Inspection #$id';
   String get shareText => isNl ? 'Inspectie PDF' : 'Inspection PDF';
-  String get shareSampleText =>
-      isNl ? 'Voorbeeld Inspectie PDF' : 'Sample Inspection PDF';
+  String get saveToFile => isNl ? 'Opslaan als...' : 'Save as...';
+  String get pdfSaved => isNl ? 'PDF opgeslagen' : 'PDF saved';
+  String pdfSaveFailed(Object e) =>
+      isNl ? 'Opslaan mislukt: $e' : 'Save failed: $e';
   String get language => isNl ? 'Taal' : 'Language';
   String get duplicateInspection => isNl ? 'Dupliceren' : 'Duplicate';
   String get duplicateInspectionFailed =>

@@ -1,7 +1,7 @@
 name: mijn_rapportage
 description: "MijnRapportage — professionele elektrotechnische inspectie applicatie"
 publish_to: 'none'
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: ^3.10.7
@@ -37,6 +37,7 @@ dependencies:
   firebase_core: ^3.6.0
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.3
+  file_picker: ^13.1.0
 
 dev_dependencies:
   flutter_test:

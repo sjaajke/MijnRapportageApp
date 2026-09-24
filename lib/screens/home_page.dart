@@ -38,6 +38,7 @@ import '../services/xml_export_service.dart';
 import '../services/xml_import_service.dart';
 import '../services/pdf_export_service.dart';
 import 'handleiding_page.dart';
+import 'pdf_preview_page.dart';
 import 'privacy_screen.dart';
 import 'inspection_menu_page.dart';
 import 'settings_page.dart';
@@ -152,29 +153,6 @@ class _HomePageState extends State<HomePage> {
     _loadInspections();
   }
 
-  Future<void> _exportXml(Inspection inspection) async {
-    final l10n = AppLocalizations.of(context);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-    try {
-      final path = await XmlExportService().exportInspection(inspection.id!);
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.xmlExported(path))),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.exportFailed(e))),
-      );
-    }
-  }
-
   Future<void> _exportPdf(Inspection inspection) async {
     final l10n = AppLocalizations.of(context);
     showDialog(
@@ -195,9 +173,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
+    );
   }
 
   Future<void> _exportConstateriungPdf(Inspection inspection) async {
@@ -221,9 +206,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
+    );
   }
 
   Future<void> _exportSwitchboardConstateriungPdf(
@@ -248,9 +240,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
+    );
   }
 
   Future<void> _exportHerstelPdf(Inspection inspection) async {
@@ -273,9 +272,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
+    );
   }
 
   Future<void> _exportNoodverlichtingPdf(Inspection inspection) async {
@@ -299,9 +305,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
+    );
   }
 
   Future<void> _exportNoodverlichtingInternPdf(Inspection inspection) async {
@@ -325,34 +338,16 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareText);
-    } catch (_) {}
-  }
-
-  Future<void> _generateSamplePdf(Inspection inspection) async {
-    final l10n = AppLocalizations.of(context);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: l10n.shareText,
+          shareText: l10n.shareText,
+        ),
+      ),
     );
-    String path;
-    try {
-      path = await PdfExportService().generateSamplePdf();
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.samplePdfFailed(e))),
-      );
-      return;
-    }
-    if (!mounted) return;
-    Navigator.pop(context);
-    try {
-      await Share.shareXFiles([XFile(path)], text: l10n.shareSampleText);
-    } catch (_) {}
   }
 
   Future<void> _exportZip(Inspection inspection) async {
@@ -517,7 +512,7 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.upload_file),
+            icon: const Icon(Icons.file_download_outlined),
             tooltip: 'ZIP importeren',
             onPressed: _importZip,
           ),
@@ -626,7 +621,6 @@ class _HomePageState extends State<HomePage> {
                           );
                           _loadInspections();
                         },
-                        onExportXml: () => _exportXml(_inspections[index]),
                         onExportPdf: () => _exportPdf(_inspections[index]),
                         onExportConstateriungPdf: () =>
                             _exportConstateriungPdf(_inspections[index]),
@@ -641,8 +635,6 @@ class _HomePageState extends State<HomePage> {
                             _exportNoodverlichtingInternPdf(
                                 _inspections[index]),
                         onExportZip: () => _exportZip(_inspections[index]),
-                        onSamplePdf: () =>
-                            _generateSamplePdf(_inspections[index]),
                         onCopySections: () =>
                             _copySections(_inspections[index]),
                         onDuplicate: () =>
@@ -660,7 +652,6 @@ class _InspectionTile extends StatelessWidget {
   final Inspection inspection;
   final DatabaseService db;
   final VoidCallback onTap;
-  final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final VoidCallback onExportConstateriungPdf;
   final VoidCallback onExportSwitchboardConstateriungPdf;
@@ -668,7 +659,6 @@ class _InspectionTile extends StatelessWidget {
   final VoidCallback onExportNoodverlichtingPdf;
   final VoidCallback onExportNoodverlichtingInternPdf;
   final VoidCallback onExportZip;
-  final VoidCallback onSamplePdf;
   final VoidCallback onCopySections;
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
@@ -677,7 +667,6 @@ class _InspectionTile extends StatelessWidget {
     required this.inspection,
     required this.db,
     required this.onTap,
-    required this.onExportXml,
     required this.onExportPdf,
     required this.onExportConstateriungPdf,
     required this.onExportSwitchboardConstateriungPdf,
@@ -685,7 +674,6 @@ class _InspectionTile extends StatelessWidget {
     required this.onExportNoodverlichtingPdf,
     required this.onExportNoodverlichtingInternPdf,
     required this.onExportZip,
-    required this.onSamplePdf,
     required this.onCopySections,
     required this.onDuplicate,
     required this.onDelete,
@@ -772,9 +760,6 @@ class _InspectionTile extends StatelessWidget {
                   case 'zip':
                     onExportZip();
                     break;
-                  case 'xml':
-                    onExportXml();
-                    break;
                   case 'pdf':
                     onExportPdf();
                     break;
@@ -792,9 +777,6 @@ class _InspectionTile extends StatelessWidget {
                     break;
                   case 'pdf_noodverlichting_intern':
                     onExportNoodverlichtingInternPdf();
-                    break;
-                  case 'sample_pdf':
-                    onSamplePdf();
                     break;
                   case 'copy_sections':
                     onCopySections();
@@ -815,16 +797,6 @@ class _InspectionTile extends StatelessWidget {
                       Icon(Icons.folder_zip_outlined, size: 20),
                       SizedBox(width: 8),
                       Text('Exporteren als ZIP'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'xml',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.code, size: 20),
-                      const SizedBox(width: 8),
-                      Text(l10n.exportXml),
                     ],
                   ),
                 ),
@@ -903,17 +875,6 @@ class _InspectionTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'sample_pdf',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.description,
-                          size: 20, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Text(l10n.samplePdf),
-                    ],
-                  ),
-                ),
                 const PopupMenuItem(
                   value: 'copy_sections',
                   child: Row(
@@ -978,7 +939,7 @@ class _DuplicateEntry {
   final int targetId;
   final String sourceLabel;
   final String targetLabel;
-  DuplicateCopyAction action;
+  DuplicateCopyAction action = DuplicateCopyAction.skip;
 
   _DuplicateEntry({
     required this.category,
@@ -986,7 +947,6 @@ class _DuplicateEntry {
     required this.targetId,
     required this.sourceLabel,
     required this.targetLabel,
-    this.action = DuplicateCopyAction.skip,
   });
 }
 
@@ -1003,6 +963,8 @@ class _CopySectionsDialogState extends State<_CopySectionsDialog> {
   int _step = 0;
   int? _sourceId;
   final Map<int, String> _sourceLabels = {};
+  final Map<int, String> _sourceProjectNumbers = {};
+  String _targetProjectNumber = '';
 
   bool _copySwitchboards = true;
   bool _copySolar = true;
@@ -1050,13 +1012,18 @@ class _CopySectionsDialogState extends State<_CopySectionsDialog> {
       widget.db.getSolarInstallations(targetId),
       widget.db.getDefects(targetId),
     ]);
+    final targetTitlePage = await widget.db.getTitlePage(targetId);
+    final sourceProjectNumbers = <int, String>{};
     final sourceLabels = await Future.wait(widget.sources.map((i) async {
       final titlePage = await widget.db.getTitlePage(i.id!);
       final generalData = await widget.db.getGeneralData(i.id!);
+      sourceProjectNumbers[i.id!] = titlePage?.projectNumber ?? '';
       return MapEntry(i.id!, _formatSourceLabel(titlePage, generalData, i.id!));
     }));
     if (!mounted) return;
     setState(() {
+      _targetProjectNumber = targetTitlePage?.projectNumber ?? '';
+      _sourceProjectNumbers.addAll(sourceProjectNumbers);
       _targetSwitchboardCount = (targetCounts[0] as List).length;
       _targetSolarCount = (targetCounts[1] as List).length;
       _targetDefectCount = (targetCounts[2] as List).length;
@@ -1108,11 +1075,49 @@ class _CopySectionsDialogState extends State<_CopySectionsDialog> {
   String _defectLabel(Defect d) =>
       d.naamCode.isNotEmpty ? '${d.naamCode} (${d.locationFull})' : d.locationFull;
 
-  /// Stap 1 bevestigen: bepaalt duplicaten tussen bron en doel. Als er
-  /// duplicaten zijn gaat de dialoog naar stap 2, anders wordt direct
-  /// gekopieerd.
+  /// Eerste controle: het Project-/werkbonnummer van bron en doel moet
+  /// identiek zijn. Zo niet, dan krijgt de gebruiker een melding en kan
+  /// hij/zij kiezen om toch door te gaan. Geeft `true` terug als er
+  /// doorgegaan mag worden.
+  Future<bool> _confirmProjectNumberMatch() async {
+    final sourceNumber = (_sourceProjectNumbers[_sourceId] ?? '').trim();
+    final targetNumber = _targetProjectNumber.trim();
+    if (sourceNumber == targetNumber) return true;
+    String show(String v) => v.isEmpty ? '(leeg)' : v;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+        title: const Text('Project-/werkbonnummer wijkt af'),
+        content: Text(
+          'Het Project-/werkbonnummer van de gekozen inspectie komt niet '
+          'overeen met dat van deze inspectie.\n\n'
+          'Overnemen van: ${show(sourceNumber)}\n'
+          'Deze inspectie: ${show(targetNumber)}\n\n'
+          'Weet je zeker dat je de onderdelen wilt overnemen?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuleren'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Toch overnemen'),
+          ),
+        ],
+      ),
+    );
+    return proceed == true;
+  }
+
+  /// Stap 1 bevestigen: controleert eerst het Project-/werkbonnummer en
+  /// bepaalt daarna duplicaten tussen bron en doel. Als er duplicaten zijn
+  /// gaat de dialoog naar stap 2, anders wordt direct gekopieerd.
   Future<void> _goToDuplicateCheckOrCopy() async {
     if (!_canConfirm) return;
+    if (!await _confirmProjectNumberMatch()) return;
+    if (!mounted) return;
     setState(() => _busy = true);
     final sourceId = _sourceId!;
     final targetId = widget.target.id!;

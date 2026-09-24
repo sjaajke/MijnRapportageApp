@@ -16,10 +16,12 @@
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import '../widgets/inspection_nav_bar.dart';
 // ignore: unnecessary_import
 import '../l10n/app_localizations.dart';
 import '../models/final_assessment.dart';
 import '../models/inspection_detail.dart';
+import '../models/inspection_module.dart';
 import '../models/report_template.dart';
 import '../services/database_service.dart';
 import '../utils/inleiding_placeholders.dart';
@@ -33,7 +35,6 @@ import 'noodverlichting_list_page.dart';
 import 'defects_list_page.dart';
 import 'download_page.dart';
 import 'eindbeoordeling_page.dart';
-import 'home_page.dart';
 import 'tekeningen_list_page.dart';
 import 'bijlagen_list_page.dart';
 import 'checklists_list_page.dart';
@@ -62,6 +63,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
   int _defectCount = 0;
   bool _hasMeldingGevaarlijk = false;
   String _status = 'draft';
+  Set<String> _hiddenModules = {};
 
   @override
   void initState() {
@@ -93,6 +95,7 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
           defects.any((d) => d.classification == 'Rd');
       final inspection = results[5] as dynamic;
       _status = inspection?.status ?? 'draft';
+      _hiddenModules = inspection?.hiddenModuleSet ?? {};
       _noodverlichtingCount = (results[6] as List).length;
       _loading = false;
     });
@@ -185,6 +188,11 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       herstelVerklaring: template.herstelVerklaring,
     ));
 
+    final templateHidden = parseHiddenModules(template.hiddenModules);
+    await _db.updateInspectionHiddenModules(
+        widget.inspectionId, templateHidden);
+    if (mounted) setState(() => _hiddenModules = templateHidden);
+
     // Fill FinalAssessment from template
     if (template.tekstRapportVerklaring.isNotEmpty ||
         template.volgendInspectie.isNotEmpty) {
@@ -218,6 +226,59 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
       ),
     );
   }
+  Future<void> _showModuleVisibilityDialog() async {
+    final l10n = AppLocalizations.of(context);
+    var selection = Set<String>.from(_hiddenModules);
+
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(
+            l10n.isNl ? 'Onderdelen tonen/verbergen' : 'Show/hide sections',
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: inspectionModules.map((module) {
+                final isVisible = !selection.contains(module.key);
+                return CheckboxListTile(
+                  value: isVisible,
+                  title: Text(module.label),
+                  onChanged: (checked) {
+                    setDialogState(() {
+                      if (checked == true) {
+                        selection.remove(module.key);
+                      } else {
+                        selection.add(module.key);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l10n.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, selection),
+              child: Text(l10n.isNl ? 'Opslaan' : 'Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    await _db.updateInspectionHiddenModules(widget.inspectionId, result);
+    if (!mounted) return;
+    setState(() => _hiddenModules = result);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -225,10 +286,18 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.inspection),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.visibility_outlined),
+            tooltip:
+                l10n.isNl ? 'Onderdelen tonen/verbergen' : 'Show/hide sections',
+            onPressed: _showModuleVisibilityDialog,
+          ),
+        ],
       ),
       body: Column(
         children: [
-          _NavBar(inspectionId: widget.inspectionId),
+          InspectionNavBar(inspectionId: widget.inspectionId, showInspectionButton: false),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -245,117 +314,126 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                 const SizedBox(height: 8),
 
                 // ── Inspectie menu kaarten ──────────────────────────────
-                _MenuCard(
-                  icon: Icons.description,
-                  title: l10n.titlePageTitle,
-                  subtitle: l10n.titlePageSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          TitlePageScreen(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('titlepage'))
+                  _MenuCard(
+                    icon: Icons.description,
+                    title: l10n.titlePageTitle,
+                    subtitle: l10n.titlePageSubtitle,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            TitlePageScreen(inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.article_outlined,
-                  title: l10n.inleidingTitle,
-                  subtitle: l10n.inleidingSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          InleidingPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('inleiding'))
+                  _MenuCard(
+                    icon: Icons.article_outlined,
+                    title: l10n.inleidingTitle,
+                    subtitle: l10n.inleidingSubtitle,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            InleidingPage(inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.business,
-                  title: l10n.generalData,
-                  subtitle: l10n.generalDataSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          GeneralDataPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('generaldata'))
+                  _MenuCard(
+                    icon: Icons.business,
+                    title: l10n.generalData,
+                    subtitle: l10n.generalDataSubtitle,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            GeneralDataPage(inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.assignment,
-                  title: l10n.inspectionDetails,
-                  subtitle: l10n.inspectionDetailsSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => InspectionDetailsPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('inspectiondetails'))
+                  _MenuCard(
+                    icon: Icons.assignment,
+                    title: l10n.inspectionDetails,
+                    subtitle: l10n.inspectionDetailsSubtitle,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InspectionDetailsPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.rate_review,
-                  title: l10n.finalAssessment,
-                  subtitle: l10n.finalAssessmentSubtitle,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          EindbeoordelingPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('finalassessment'))
+                  _MenuCard(
+                    icon: Icons.rate_review,
+                    title: l10n.finalAssessment,
+                    subtitle: l10n.finalAssessmentSubtitle,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EindbeoordelingPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
                 const Divider(height: 32),
-                _MenuCard(
-                  icon: Icons.lan,
-                  title: l10n.switchboardsMenu,
-                  subtitle: l10n.switchboardsMenuSubtitle,
-                  showEmptyIndicator: _switchboardCount == 0,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SwitchboardsListPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('switchboards'))
+                  _MenuCard(
+                    icon: Icons.lan,
+                    title: l10n.switchboardsMenu,
+                    subtitle: l10n.switchboardsMenuSubtitle,
+                    showEmptyIndicator: _switchboardCount == 0,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SwitchboardsListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.solar_power,
-                  title: l10n.solarInstallations,
-                  subtitle: l10n.solarInstallationsSubtitle,
-                  showEmptyIndicator: _solarCount == 0,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SolarInstallationsListPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('solar'))
+                  _MenuCard(
+                    icon: Icons.solar_power,
+                    title: l10n.solarInstallations,
+                    subtitle: l10n.solarInstallationsSubtitle,
+                    showEmptyIndicator: _solarCount == 0,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SolarInstallationsListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.emergency,
-                  title: 'Noodverlichting',
-                  subtitle: 'Inspecteer noodverlichtingsarmaturen',
-                  showEmptyIndicator: _noodverlichtingCount == 0,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => NoodverlichtingListPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('noodverlichting'))
+                  _MenuCard(
+                    icon: Icons.emergency,
+                    title: 'Noodverlichting',
+                    subtitle: 'Inspecteer noodverlichtingsarmaturen',
+                    showEmptyIndicator: _noodverlichtingCount == 0,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NoodverlichtingListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.battery_charging_full,
-                  title: l10n.batteryInstallations,
-                  subtitle: l10n.comingSoon,
-                  showEmptyIndicator: true,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(l10n.batteryComingSoon)),
-                    );
-                  },
-                ),
+                if (!_hiddenModules.contains('battery'))
+                  _MenuCard(
+                    icon: Icons.battery_charging_full,
+                    title: l10n.batteryInstallations,
+                    subtitle: l10n.comingSoon,
+                    showEmptyIndicator: true,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.batteryComingSoon)),
+                      );
+                    },
+                  ),
                 _MenuCard(
                   icon: Icons.warning_amber,
                   title: l10n.defects,
@@ -383,66 +461,71 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
                     ),
                   ),
                 ),
-                _MenuCard(
-                  icon: Icons.map_outlined,
-                  title: 'Tekening inspectie',
-                  subtitle: 'Inspecteer vanaf plattegrond of schema',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TekeningenListPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('tekeningen'))
+                  _MenuCard(
+                    icon: Icons.map_outlined,
+                    title: 'Tekening inspectie',
+                    subtitle: 'Inspecteer vanaf plattegrond of schema',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TekeningenListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.table_chart_outlined,
-                  title: 'Meetgegevens',
-                  subtitle: 'Importeer meetgegevens uit Excel-bestanden',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          MeetgegevensPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('meetgegevens'))
+                  _MenuCard(
+                    icon: Icons.table_chart_outlined,
+                    title: 'Meetgegevens',
+                    subtitle: 'Importeer meetgegevens uit Excel-bestanden',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MeetgegevensPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.attach_file,
-                  title: 'Bijlagen',
-                  subtitle: 'Voeg PDF-documenten toe aan het rapport',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          BijlagenListPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('bijlagen'))
+                  _MenuCard(
+                    icon: Icons.attach_file,
+                    title: 'Bijlagen',
+                    subtitle: 'Voeg PDF-documenten toe aan het rapport',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BijlagenListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.checklist,
-                  title: 'Checklijsten',
-                  subtitle: 'Maak eigen checklijsten voor deze inspectie',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ChecklistsListPage(inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('checklists'))
+                  _MenuCard(
+                    icon: Icons.checklist,
+                    title: 'Checklijsten',
+                    subtitle: 'Maak eigen checklijsten voor deze inspectie',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChecklistsListPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
-                _MenuCard(
-                  icon: Icons.assignment_turned_in_outlined,
-                  title: 'Herstelverklaring',
-                  subtitle: 'Verklaring van uitgevoerde herstelwerkzaamheden',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => HerstelverklaringPage(
-                          inspectionId: widget.inspectionId),
+                if (!_hiddenModules.contains('herstelverklaring'))
+                  _MenuCard(
+                    icon: Icons.assignment_turned_in_outlined,
+                    title: 'Herstelverklaring',
+                    subtitle: 'Verklaring van uitgevoerde herstelwerkzaamheden',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HerstelverklaringPage(
+                            inspectionId: widget.inspectionId),
+                      ),
                     ),
                   ),
-                ),
                 _MenuCard(
                   icon: Icons.cloud_download_outlined,
                   title: 'Download',
@@ -542,67 +625,6 @@ class _InspectionMenuPageState extends State<InspectionMenuPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavBar extends StatelessWidget {
-  final int inspectionId;
-  const _NavBar({required this.inspectionId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 2,
-      child: SizedBox(
-        height: 56,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _btn(context, Icons.list_outlined, 'Inspecties',
-                () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-                      builder: (_) => HomePage()), (route) => false)),
-            _btn(context, Icons.lan, 'Verdelers',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SwitchboardsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.solar_power, 'Zonnestroom',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => SolarInstallationsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.emergency, 'Noodverlichting',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => NoodverlichtingListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.battery_charging_full, 'Accu',
-                () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Accu-installaties: binnenkort beschikbaar')))),
-            _btn(context, Icons.warning_amber, 'Gebreken',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => DefectsListPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.build_outlined, 'Herstel',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => HerstelOverviewPage(inspectionId: inspectionId)))),
-            _btn(context, Icons.map_outlined, 'Tekeningen',
-                () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => TekeningenListPage(inspectionId: inspectionId)))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _btn(BuildContext context, IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: const Color(0xFF1976D2)),
-            Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF1976D2))),
-          ],
-        ),
       ),
     );
   }

@@ -15,12 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with MijnRapportage. If not, see <https://www.gnu.org/licenses/>.
 
+import 'inspection_module.dart';
+
 class Inspection {
   final int? id;
   final String createdAt;
   final String updatedAt;
   final String status;
   final String syncStatus;
+  final String hiddenModules;
 
   Inspection({
     this.id,
@@ -28,7 +31,10 @@ class Inspection {
     required this.updatedAt,
     this.status = 'draft',
     this.syncStatus = 'pending',
+    this.hiddenModules = '',
   });
+
+  Set<String> get hiddenModuleSet => parseHiddenModules(hiddenModules);
 
   Map<String, dynamic> toMap() {
     return {
@@ -37,6 +43,7 @@ class Inspection {
       'updated_at': updatedAt,
       'status': status,
       'sync_status': syncStatus,
+      'hidden_modules': hiddenModules,
     };
   }
 
@@ -47,6 +54,7 @@ class Inspection {
       updatedAt: map['updated_at'] as String,
       status: map['status'] as String? ?? 'draft',
       syncStatus: map['sync_status'] as String? ?? 'pending',
+      hiddenModules: map['hidden_modules'] as String? ?? '',
     );
   }
 
@@ -56,6 +64,7 @@ class Inspection {
     String? updatedAt,
     String? status,
     String? syncStatus,
+    String? hiddenModules,
   }) {
     return Inspection(
       id: id ?? this.id,
@@ -63,6 +72,7 @@ class Inspection {
       updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       syncStatus: syncStatus ?? this.syncStatus,
+      hiddenModules: hiddenModules ?? this.hiddenModules,
     );
   }
 }

@@ -25,6 +25,7 @@ import '../models/defect.dart';
 import '../services/database_service.dart';
 import '../services/pdf_export_service.dart';
 import '../widgets/custom_text_field.dart';
+import 'pdf_preview_page.dart';
 import '../widgets/section_header.dart';
 
 class MeldingGevaarlijkeSituatiePage extends StatefulWidget {
@@ -266,13 +267,12 @@ class _MeldingGevaarlijkeSituatiePageState
   Future<void> _onGeneratePdf() async {
     final path = await _generatePdf();
     if (path == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('PDF gegenereerd'),
-        action: SnackBarAction(
-          label: 'Delen',
-          onPressed: () => Share.shareXFiles([XFile(path)],
-              subject: 'Melding gevaarlijke situatie'),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewPage(
+          path: path,
+          title: 'Melding gevaarlijke situatie',
         ),
       ),
     );

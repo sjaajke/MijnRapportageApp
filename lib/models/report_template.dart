@@ -42,6 +42,7 @@ class ReportTemplate {
   final String volgendInspectie;
   final String eindbeoordelingOKE;
   final String meldingGevaarlijkeSituatie;
+  final String hiddenModules;
 
   ReportTemplate({
     this.id,
@@ -70,6 +71,7 @@ class ReportTemplate {
     this.volgendInspectie = '',
     this.eindbeoordelingOKE = '',
     this.meldingGevaarlijkeSituatie = '',
+    this.hiddenModules = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -100,6 +102,7 @@ class ReportTemplate {
       'volgend_inspectie': volgendInspectie,
       'eindbeoordeling_oke': eindbeoordelingOKE,
       'melding_gevaarlijke_situatie': meldingGevaarlijkeSituatie,
+      'hidden_modules': hiddenModules,
     };
   }
 
@@ -139,6 +142,7 @@ class ReportTemplate {
       eindbeoordelingOKE: map['eindbeoordeling_oke'] as String? ?? '',
       meldingGevaarlijkeSituatie:
           map['melding_gevaarlijke_situatie'] as String? ?? '',
+      hiddenModules: map['hidden_modules'] as String? ?? '',
     );
   }
 
@@ -169,6 +173,7 @@ class ReportTemplate {
     String? volgendInspectie,
     String? eindbeoordelingOKE,
     String? meldingGevaarlijkeSituatie,
+    String? hiddenModules,
   }) {
     return ReportTemplate(
       id: id ?? this.id,
@@ -207,6 +212,7 @@ class ReportTemplate {
       eindbeoordelingOKE: eindbeoordelingOKE ?? this.eindbeoordelingOKE,
       meldingGevaarlijkeSituatie:
           meldingGevaarlijkeSituatie ?? this.meldingGevaarlijkeSituatie,
+      hiddenModules: hiddenModules ?? this.hiddenModules,
     );
   }
 }
